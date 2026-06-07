@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # ─── PostgreSQL Database ───────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: nhyqr_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-nhyqr}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-nhyqr_secret}
+      POSTGRES_DB: ${DB_NAME:-nhyqr_ad_manager}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-nhyqr}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Backend API ────────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nhyqr_api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${DB_USER:-nhyqr}:${DB_PASSWORD:-nhyqr_secret}@db:5432/${DB_NAME:-nhyqr_ad_manager}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      TWILIO_SID: ${TWILIO_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+      FAST2SMS_API_KEY: ${FAST2SMS_API_KEY}
+      INSTAGRAM_CLIENT_ID: ${INSTAGRAM_CLIENT_ID}
+      INSTAGRAM_CLIENT_SECRET: ${INSTAGRAM_CLIENT_SECRET}
+      FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID}
+      FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      BACKEND_URL: ${BACKEND_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  # ─── Frontend (Static) ──────────────────────────────────────
+  web:
+    image: nginx:alpine
+    container_name: nhyqr_web
+    restart: unless-stopped
+    volumes:
+      - ./webapp/dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:

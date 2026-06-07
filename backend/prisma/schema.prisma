@@ -1,0 +1,332 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  phone         String    @unique
+  name          String?
+  email         String?   @unique
+  avatar        String?
+  role          Role      @default(USER)
+  isVerified    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  campaigns         Campaign[]
+  reels             Reel[]
+  assets            Asset[]
+  scheduledPosts    ScheduledPost[]
+  platformAccounts  PlatformAccount[]
+  subscriptions     Subscription[]
+  settings          UserSettings?
+
+  @@map("users")
+}
+
+model Otp {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+  @@map("otps")
+}
+
+model Campaign {
+  id          String          @id @default(cuid())
+  userId      String
+  name        String
+  objective   CampaignObjective @default(AWARENESS)
+  platforms   String[]
+  status      CampaignStatus  @default(DRAFT)
+  budget      Float?
+  spent       Float           @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  targetAudience String?
+  description String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adCopies    AdCopy[]
+  assets      CampaignAsset[]
+  analytics   CampaignAnalytics[]
+  scheduledPosts ScheduledPost[]
+
+  @@index([userId])
+  @@map("campaigns")
+}
+
+model AdCopy {
+  id          String   @id @default(cuid())
+  campaignId  String
+  platform    Platform
+  headline    String
+  body        String
+  cta         String
+  hashtags    String[]
+  variations  Json?
+  isPrimary   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@map("ad_copies")
+}
+
+model Reel {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String
+  script        String
+  voice         String   @default("en-US-JennyNeural")
+  bgStyle       String   @default("gradient")
+  bgValue       String?
+  captionStyle  Json?
+  duration      Int      @default(15)
+  videoUrl      String?
+  thumbnailUrl  String?
+  status        ReelStatus @default(DRAFT)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("reels")
+}
+
+model Asset {
+  id          String     @id @default(cuid())
+  userId      String
+  name        String
+  type        AssetType
+  url         String
+  platform    Platform?
+  tags        String[]
+  size        Int
+  dimensions  String?
+  mimeType    String?
+  isPublic    Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaigns   CampaignAsset[]
+
+  @@index([userId])
+  @@map("assets")
+}
+
+model CampaignAsset {
+  id          String   @id @default(cuid())
+  campaignId  String
+  assetId     String
+  createdAt   DateTime @default(now())
+
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, assetId])
+  @@map("campaign_assets")
+}
+
+model ScheduledPost {
+  id          String     @id @default(cuid())
+  userId      String
+  campaignId  String?
+  platform    Platform
+  content     String
+  mediaUrls   String[]
+  scheduledAt DateTime
+  status      PostStatus @default(DRAFT)
+  publishedAt DateTime?
+  engagement  Json?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign    Campaign?  @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([scheduledAt])
+  @@map("scheduled_posts")
+}
+
+model CampaignAnalytics {
+  id          String   @id @default(cuid())
+  campaignId  String
+  platform    Platform
+  date        DateTime @default(now())
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  leads       Int      @default(0)
+  spend       Float    @default(0)
+  engagements Int      @default(0)
+  likes       Int      @default(0)
+  comments    Int      @default(0)
+  shares      Int      @default(0)
+  saves       Int      @default(0)
+  ctr         Float    @default(0)
+  cpl         Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, platform, date])
+  @@index([campaignId])
+  @@map("campaign_analytics")
+}
+
+model PlatformAccount {
+  id           String   @id @default(cuid())
+  userId       String
+  platform     Platform
+  accountName  String
+  accountId    String
+  profileUrl   String?
+  followerCount Int     @default(0)
+  accessToken  String
+  refreshToken String?
+  expiresAt    DateTime?
+  isActive     Boolean  @default(true)
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform, accountId])
+  @@index([userId])
+  @@map("platform_accounts")
+}
+
+model Subscription {
+  id                String   @id @default(cuid())
+  userId            String
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+  plan              Plan     @default(FREE)
+  amount            Float    @default(0)
+  currency          String   @default("INR")
+  status            SubscriptionStatus @default(ACTIVE)
+  startsAt          DateTime @default(now())
+  expiresAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model UserSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  productName     String   @default("NHY-QR Digital Menu")
+  productTagline  String   @default("QR-powered digital menus for modern restaurants")
+  productDescription String?
+  features        Json?
+  pricingTiers    Json?
+  targetAudience  String[]
+  uvp             String?
+  brandPrimary    String   @default("#C4814B")
+  brandSecondary  String   @default("#2C2420")
+  brandAccent     String   @default("#4A7FB5")
+  headingFont     String   @default("Inter")
+  bodyFont        String   @default("Inter")
+  brandVoice      Json?
+  forbiddenWords  String[]
+  aiObjective     CampaignObjective @default(AWARENESS)
+  aiPlatforms     String[]
+  aiCreativity    Int      @default(50)
+  aiHashtagCount  Int      @default(8)
+  aiInclude       String?
+  aiAvoid         String?
+  aiEmojiEnabled  Boolean  @default(true)
+  aiCopyLength    String   @default("medium")
+  aiCTA           String   @default("Learn More")
+  aiLanguage      String   @default("en")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum CampaignObjective {
+  AWARENESS
+  ENGAGEMENT
+  CONVERSIONS
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum Platform {
+  INSTAGRAM
+  FACEBOOK
+  YOUTUBE
+}
+
+enum ReelStatus {
+  DRAFT
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum AssetType {
+  IMAGE
+  VIDEO
+  SCREENSHOT
+  QR_MOCKUP
+  AUDIO
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING
+}

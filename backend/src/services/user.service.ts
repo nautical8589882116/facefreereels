@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { ApiError } from '../middleware/errorHandler';
+import { userProfileInclude, withCurrentSubscription } from '../utils/user';
 
 /**
  * Get user profile by user ID
@@ -7,22 +8,14 @@ import { ApiError } from '../middleware/errorHandler';
 export const getProfile = async (userId: string): Promise<any> => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: {
-      subscription: true,
-      _count: {
-        select: {
-          campaigns: true,
-          qrCodes: true,
-        },
-      },
-    },
+    include: userProfileInclude,
   });
 
   if (!user) {
     throw new ApiError(404, 'User not found');
   }
 
-  return user;
+  return withCurrentSubscription(user);
 };
 
 /**
@@ -53,18 +46,10 @@ export const updateProfile = async (
       ...(data.email !== undefined && { email: data.email }),
       ...(data.avatar !== undefined && { avatar: data.avatar }),
     },
-    include: {
-      subscription: true,
-      _count: {
-        select: {
-          campaigns: true,
-          qrCodes: true,
-        },
-      },
-    },
+    include: userProfileInclude,
   });
 
-  return user;
+  return withCurrentSubscription(user);
 };
 
 /**
@@ -77,18 +62,10 @@ export const updateAvatar = async (
   const user = await prisma.user.update({
     where: { id: userId },
     data: { avatar: fileUrl },
-    include: {
-      subscription: true,
-      _count: {
-        select: {
-          campaigns: true,
-          qrCodes: true,
-        },
-      },
-    },
+    include: userProfileInclude,
   });
 
-  return user;
+  return withCurrentSubscription(user);
 };
 
 /**

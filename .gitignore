@@ -49,3 +49,6 @@ temp/
 *.pid
 *.seed
 *.pid.lock
+
+# Azure deployment env (contains secrets)
+.env.azure

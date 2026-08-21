@@ -119,7 +119,9 @@ export async function updateScheduledPost(userId: string, postId: string, input:
   const data: Prisma.ScheduledPostUpdateInput = {}
 
   if (input.campaignId !== undefined) {
-    data.campaignId = input.campaignId ?? null
+    data.campaign = input.campaignId
+      ? { connect: { id: input.campaignId } }
+      : { disconnect: true }
   }
   if (input.platform !== undefined) data.platform = input.platform
   if (input.content !== undefined) data.content = input.content

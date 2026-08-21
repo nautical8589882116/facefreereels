@@ -1,0 +1,285 @@
+name: Deploy NHY Ad Manager API to Azure
+
+# Mirrors the deployment convention already used by nauticalsoft/Nautical:
+# Azure CLI + GitHub Actions, ZIP deploy onto the existing shared Linux
+# App Service plan. Authentication uses the repository secret
+# AZURE_CREDENTIALS — no credential is ever committed to this repository.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/azure-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  # Non-secret Azure coordinates, shared with the Nautical deployment.
+  SUBSCRIPTION_ID: "73888504-282d-4ee8-acdb-0679df3b51e3"
+  RESOURCE_GROUP: "posnauticals-rg"
+  APP_SERVICE_PLAN: "posnauticals-plan"
+  LOCATION: "southindia"
+  APP_NAME: "nhy-ad-manager"
+  NODE_VERSION: "20"
+  HEALTH_PATH: "/api/health"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Type-check and build
+        working-directory: backend
+        run: npm run build
+
+      - name: Audit dependencies
+        working-directory: backend
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Prune to production dependencies
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          npm prune --omit=dev
+          # The generated client must survive the prune — the runtime needs it
+          # and the prisma CLI is a devDependency that is no longer installed.
+          test -d node_modules/.prisma/client
+
+      - name: Create deployment package
+        working-directory: backend
+        run: |
+          zip -qr "${{ github.workspace }}/api.zip" \
+            dist node_modules package.json prisma
+          ls -lh "${{ github.workspace }}/api.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-zip
+          path: api.zip
+          retention-days: 5
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: api-zip
+          path: ${{ github.workspace }}
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Select subscription
+        run: az account set --subscription "$SUBSCRIPTION_ID"
+
+      - name: Create or update the App Service
+        run: |
+          set -euo pipefail
+
+          if ! az webapp show --resource-group "$RESOURCE_GROUP" --name "$APP_NAME" >/dev/null 2>&1; then
+            echo "Creating $APP_NAME on $APP_SERVICE_PLAN"
+            az webapp create \
+              --resource-group "$RESOURCE_GROUP" \
+              --plan "$APP_SERVICE_PLAN" \
+              --name "$APP_NAME" \
+              --runtime "NODE:${NODE_VERSION}-lts"
+          else
+            echo "$APP_NAME already exists — updating configuration"
+          fi
+
+          az webapp config set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$APP_NAME" \
+            --linux-fx-version "NODE|${NODE_VERSION}-lts" \
+            --startup-file "node dist/index.js" \
+            --health-check-path "$HEALTH_PATH" \
+            --ftps-state Disabled \
+            --http20-enabled true \
+            --always-on true
+
+          az webapp update \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$APP_NAME" \
+            --https-only true
+
+      - name: Apply application settings
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET: ${{ secrets.RAZORPAY_KEY_SECRET }}
+          RAZORPAY_WEBHOOK_SECRET: ${{ secrets.RAZORPAY_WEBHOOK_SECRET }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          TWILIO_SID: ${{ secrets.TWILIO_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
+          FAST2SMS_API_KEY: ${{ secrets.FAST2SMS_API_KEY }}
+          INSTAGRAM_CLIENT_ID: ${{ secrets.INSTAGRAM_CLIENT_ID }}
+          INSTAGRAM_CLIENT_SECRET: ${{ secrets.INSTAGRAM_CLIENT_SECRET }}
+          FACEBOOK_CLIENT_ID: ${{ secrets.FACEBOOK_CLIENT_ID }}
+          FACEBOOK_CLIENT_SECRET: ${{ secrets.FACEBOOK_CLIENT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+        run: |
+          set -euo pipefail
+
+          # Settings are marshalled through a file so no secret is ever passed
+          # on a command line or echoed into the workflow log.
+          SETTINGS_FILE="$(mktemp)"
+          trap 'rm -f "$SETTINGS_FILE"' EXIT
+
+          BACKEND_URL="https://${APP_NAME}.azurewebsites.net"
+
+          jq -n \
+            --arg node_env "production" \
+            --arg backend_url "$BACKEND_URL" \
+            --arg frontend_url "${FRONTEND_URL:-$BACKEND_URL}" \
+            --arg build_flag "false" \
+            --arg database_url "${DATABASE_URL:-}" \
+            --arg jwt_secret "${JWT_SECRET:-}" \
+            --arg jwt_refresh_secret "${JWT_REFRESH_SECRET:-}" \
+            --arg razorpay_key_id "${RAZORPAY_KEY_ID:-}" \
+            --arg razorpay_key_secret "${RAZORPAY_KEY_SECRET:-}" \
+            --arg razorpay_webhook_secret "${RAZORPAY_WEBHOOK_SECRET:-}" \
+            --arg cloudinary_cloud_name "${CLOUDINARY_CLOUD_NAME:-}" \
+            --arg cloudinary_api_key "${CLOUDINARY_API_KEY:-}" \
+            --arg cloudinary_api_secret "${CLOUDINARY_API_SECRET:-}" \
+            --arg twilio_sid "${TWILIO_SID:-}" \
+            --arg twilio_auth_token "${TWILIO_AUTH_TOKEN:-}" \
+            --arg twilio_phone_number "${TWILIO_PHONE_NUMBER:-}" \
+            --arg fast2sms_api_key "${FAST2SMS_API_KEY:-}" \
+            --arg instagram_client_id "${INSTAGRAM_CLIENT_ID:-}" \
+            --arg instagram_client_secret "${INSTAGRAM_CLIENT_SECRET:-}" \
+            --arg facebook_client_id "${FACEBOOK_CLIENT_ID:-}" \
+            --arg facebook_client_secret "${FACEBOOK_CLIENT_SECRET:-}" \
+            --arg google_client_id "${GOOGLE_CLIENT_ID:-}" \
+            --arg google_client_secret "${GOOGLE_CLIENT_SECRET:-}" \
+            --arg youtube_client_id "${YOUTUBE_CLIENT_ID:-}" \
+            --arg youtube_client_secret "${YOUTUBE_CLIENT_SECRET:-}" \
+            '[
+              {name: "NODE_ENV",                       value: $node_env,                  slotSetting: false},
+              {name: "SCM_DO_BUILD_DURING_DEPLOYMENT", value: $build_flag,                slotSetting: false},
+              {name: "BACKEND_URL",                    value: $backend_url,               slotSetting: false},
+              {name: "FRONTEND_URL",                   value: $frontend_url,              slotSetting: false},
+              {name: "DATABASE_URL",                   value: $database_url,              slotSetting: false},
+              {name: "JWT_SECRET",                     value: $jwt_secret,                slotSetting: false},
+              {name: "JWT_REFRESH_SECRET",             value: $jwt_refresh_secret,        slotSetting: false},
+              {name: "RAZORPAY_KEY_ID",                value: $razorpay_key_id,           slotSetting: false},
+              {name: "RAZORPAY_KEY_SECRET",            value: $razorpay_key_secret,       slotSetting: false},
+              {name: "RAZORPAY_WEBHOOK_SECRET",        value: $razorpay_webhook_secret,   slotSetting: false},
+              {name: "CLOUDINARY_CLOUD_NAME",          value: $cloudinary_cloud_name,     slotSetting: false},
+              {name: "CLOUDINARY_API_KEY",             value: $cloudinary_api_key,        slotSetting: false},
+              {name: "CLOUDINARY_API_SECRET",          value: $cloudinary_api_secret,     slotSetting: false},
+              {name: "TWILIO_SID",                     value: $twilio_sid,                slotSetting: false},
+              {name: "TWILIO_AUTH_TOKEN",              value: $twilio_auth_token,         slotSetting: false},
+              {name: "TWILIO_PHONE_NUMBER",            value: $twilio_phone_number,       slotSetting: false},
+              {name: "FAST2SMS_API_KEY",               value: $fast2sms_api_key,          slotSetting: false},
+              {name: "INSTAGRAM_CLIENT_ID",            value: $instagram_client_id,       slotSetting: false},
+              {name: "INSTAGRAM_CLIENT_SECRET",        value: $instagram_client_secret,   slotSetting: false},
+              {name: "FACEBOOK_CLIENT_ID",             value: $facebook_client_id,        slotSetting: false},
+              {name: "FACEBOOK_CLIENT_SECRET",         value: $facebook_client_secret,    slotSetting: false},
+              {name: "GOOGLE_CLIENT_ID",               value: $google_client_id,          slotSetting: false},
+              {name: "GOOGLE_CLIENT_SECRET",           value: $google_client_secret,      slotSetting: false},
+              {name: "YOUTUBE_CLIENT_ID",              value: $youtube_client_id,         slotSetting: false},
+              {name: "YOUTUBE_CLIENT_SECRET",          value: $youtube_client_secret,     slotSetting: false}
+            ] | map(select(.value != ""))' > "$SETTINGS_FILE"
+
+          echo "Applying $(jq length "$SETTINGS_FILE") application settings"
+          az webapp config appsettings set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$APP_NAME" \
+            --settings @"$SETTINGS_FILE" \
+            --output none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Apply database schema
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::DATABASE_URL secret is not set — cannot apply the schema."
+            exit 1
+          fi
+
+          cd backend
+          npm ci
+          npx prisma generate
+
+          # `prisma/migrations/` does not exist yet in this repository. Until a
+          # migration history is committed, push the schema directly; once
+          # `prisma migrate dev` has generated migrations, this branch takes over
+          # and the schema is applied exactly once per migration.
+          if [ -d prisma/migrations ]; then
+            npx prisma migrate deploy
+          else
+            echo "::warning::No prisma/migrations directory — using 'prisma db push'."
+            echo "::warning::Commit a migration history before this database carries real data."
+            npx prisma db push --skip-generate
+          fi
+
+      - name: Deploy ZIP to Azure App Service
+        run: |
+          set -euo pipefail
+          az webapp deploy \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$APP_NAME" \
+            --src-path "${{ github.workspace }}/api.zip" \
+            --type zip \
+            --clean true \
+            --restart true
+
+      - name: Verify health endpoint
+        run: |
+          set -uo pipefail
+          URL="https://${APP_NAME}.azurewebsites.net${HEALTH_PATH}"
+
+          for attempt in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL" || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "Healthy after ${attempt} attempt(s): $URL"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: HTTP ${code} — retrying in 15s"
+            sleep 15
+          done
+
+          echo "::error::$URL never returned 200."
+          az webapp log tail --resource-group "$RESOURCE_GROUP" --name "$APP_NAME" &
+          sleep 30
+          exit 1

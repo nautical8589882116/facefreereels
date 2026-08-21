@@ -1,21 +1,50 @@
 import Razorpay from 'razorpay'
 import crypto from 'crypto'
+import { ApiError } from '../middleware/errorHandler'
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-})
+// The Razorpay constructor throws when `key_id` is absent. Building the client
+// at import time therefore crashed the whole process on boot whenever payment
+// credentials were not configured, taking the health endpoint down with it.
+// Construct it on first use instead — matching how the Twilio and Cloudinary
+// clients already tolerate missing configuration — so only payment endpoints
+// fail, and they fail with a clear message.
+let client: Razorpay | null = null
 
-export default razorpay
+export function getRazorpay(): Razorpay {
+  if (!client) {
+    const key_id = process.env.RAZORPAY_KEY_ID
+    const key_secret = process.env.RAZORPAY_KEY_SECRET
+
+    if (!key_id || !key_secret) {
+      throw new ApiError(
+        503,
+        'Payments are not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.'
+      )
+    }
+
+    client = new Razorpay({ key_id, key_secret })
+  }
+
+  return client
+}
+
+export function isPaymentsConfigured(): boolean {
+  return Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET)
+}
 
 export function verifyPaymentSignature(
   orderId: string,
   paymentId: string,
   signature: string
 ): boolean {
+  const secret = process.env.RAZORPAY_KEY_SECRET
+  if (!secret) {
+    throw new ApiError(503, 'Payments are not configured.')
+  }
+
   const body = orderId + '|' + paymentId
   const expected = crypto
-    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
+    .createHmac('sha256', secret)
     .update(body)
     .digest('hex')
   return expected === signature

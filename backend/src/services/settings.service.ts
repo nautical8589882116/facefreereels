@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { ApiError } from '../middleware/errorHandler';
+import { Prisma } from '@prisma/client';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -7,8 +8,8 @@ export interface ProductSettingsInput {
   productName?: string;
   productTagline?: string;
   productDescription?: string;
-  features?: Record<string, unknown>;
-  pricingTiers?: Record<string, unknown>;
+  features?: Prisma.InputJsonValue;
+  pricingTiers?: Prisma.InputJsonValue;
   targetAudience?: string[];
   uvp?: string;
 }
@@ -19,7 +20,7 @@ export interface BrandSettingsInput {
   brandAccent?: string;
   headingFont?: string;
   bodyFont?: string;
-  brandVoice?: Record<string, unknown>;
+  brandVoice?: Prisma.InputJsonValue;
   forbiddenWords?: string[];
 }
 
@@ -69,7 +70,7 @@ export const DEFAULT_SETTINGS: Omit<FullSettingsInput, 'userId'> = {
 
 // ── Helper: Build selective data object ───────────────────────────────
 
-function buildUpdateData<T extends Record<string, unknown>>(
+function buildUpdateData<T extends object>(
   input: T,
   allowedKeys: (keyof T)[]
 ): Partial<T> {

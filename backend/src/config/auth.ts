@@ -13,15 +13,23 @@ export function comparePassword(password: string, hash: string): Promise<boolean
   return bcrypt.compare(password, hash)
 }
 
+// `expiresIn` accepts jsonwebtoken's own duration union, which a plain
+// `string` from the environment does not satisfy. Read it through the option
+// type so an override like "30m" stays valid without widening the signature.
+const ACCESS_EXPIRY = (process.env.JWT_ACCESS_EXPIRY ||
+  '15m') as jwt.SignOptions['expiresIn']
+const REFRESH_EXPIRY = (process.env.JWT_REFRESH_EXPIRY ||
+  '7d') as jwt.SignOptions['expiresIn']
+
 export function generateAccessToken(userId: string, phone: string): string {
   return jwt.sign({ userId, phone, type: 'access' }, JWT_SECRET, {
-    expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
+    expiresIn: ACCESS_EXPIRY,
   })
 }
 
 export function generateRefreshToken(userId: string): string {
   return jwt.sign({ userId, type: 'refresh' }, JWT_REFRESH_SECRET, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d',
+    expiresIn: REFRESH_EXPIRY,
   })
 }
 

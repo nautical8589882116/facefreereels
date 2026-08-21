@@ -1,7 +1,8 @@
 import { prisma } from '../config/database';
 import { generateAccessToken, generateRefreshToken, generateOtp } from '../config/auth';
-import { sendOtp } from '../config/otp';
+import { sendOtp as sendOtpSms } from '../config/otp';
 import { ApiError } from '../middleware/errorHandler';
+import { userProfileInclude, withCurrentSubscription } from '../utils/user';
 
 /**
  * Send OTP to a phone number
@@ -37,7 +38,7 @@ export const sendOtp = async (phone: string): Promise<void> => {
   });
 
   // Send OTP via SMS
-  await sendOtp(phone, code);
+  await sendOtpSms(phone, code);
 };
 
 /**
@@ -89,8 +90,8 @@ export const verifyOtp = async (
   }
 
   // Generate tokens
-  const accessToken = generateAccessToken(user);
-  const refreshToken = generateRefreshToken(user);
+  const accessToken = generateAccessToken(user.id, user.phone);
+  const refreshToken = generateRefreshToken(user.id);
 
   return { user, accessToken, refreshToken };
 };
@@ -117,7 +118,7 @@ export const refreshToken = async (token: string): Promise<{ accessToken: string
   }
 
   // Generate new access token
-  const accessToken = generateAccessToken(user);
+  const accessToken = generateAccessToken(user.id, user.phone);
 
   return { accessToken };
 };
@@ -128,20 +129,12 @@ export const refreshToken = async (token: string): Promise<{ accessToken: string
 export const getUser = async (userId: string): Promise<any> => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: {
-      subscription: true,
-      _count: {
-        select: {
-          campaigns: true,
-          qrCodes: true,
-        },
-      },
-    },
+    include: userProfileInclude,
   });
 
   if (!user) {
     throw new ApiError(404, 'User not found');
   }
 
-  return user;
+  return withCurrentSubscription(user);
 };

@@ -49,3 +49,7 @@ temp/
 *.pid
 *.seed
 *.pid.lock
+
+# Built SPA copied into the API package at deploy time
+backend/public/
+*.tsbuildinfo

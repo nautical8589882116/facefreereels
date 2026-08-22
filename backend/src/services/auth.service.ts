@@ -1,6 +1,11 @@
 import { prisma } from '../config/database';
-import { generateAccessToken, generateRefreshToken, generateOtp } from '../config/auth';
-import { sendOtp } from '../config/otp';
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  generateOtp,
+  verifyRefreshToken,
+} from '../config/auth';
+import { sendOtp as sendOtpSms } from '../config/otp';
 import { ApiError } from '../middleware/errorHandler';
 
 /**
@@ -37,7 +42,7 @@ export const sendOtp = async (phone: string): Promise<void> => {
   });
 
   // Send OTP via SMS
-  await sendOtp(phone, code);
+  await sendOtpSms(phone, code);
 };
 
 /**
@@ -84,13 +89,19 @@ export const verifyOtp = async (
         email: null,
         avatar: null,
         role: 'USER',
+        isVerified: true,
       },
+    });
+  } else if (!user.isVerified) {
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: { isVerified: true },
     });
   }
 
   // Generate tokens
-  const accessToken = generateAccessToken(user);
-  const refreshToken = generateRefreshToken(user);
+  const accessToken = generateAccessToken(user.id, user.phone);
+  const refreshToken = generateRefreshToken(user.id);
 
   return { user, accessToken, refreshToken };
 };
@@ -99,11 +110,14 @@ export const verifyOtp = async (
  * Refresh access token using a refresh token
  */
 export const refreshToken = async (token: string): Promise<{ accessToken: string }> => {
-  // Verify the refresh token and extract user ID
-  const { verifyRefreshToken } = await import('../config/auth');
-  const decoded = verifyRefreshToken(token);
+  let decoded: { userId: string };
+  try {
+    decoded = verifyRefreshToken(token);
+  } catch {
+    throw new ApiError(401, 'Invalid refresh token');
+  }
 
-  if (!decoded || !decoded.userId) {
+  if (!decoded?.userId) {
     throw new ApiError(401, 'Invalid refresh token');
   }
 
@@ -117,7 +131,7 @@ export const refreshToken = async (token: string): Promise<{ accessToken: string
   }
 
   // Generate new access token
-  const accessToken = generateAccessToken(user);
+  const accessToken = generateAccessToken(user.id, user.phone);
 
   return { accessToken };
 };
@@ -129,11 +143,15 @@ export const getUser = async (userId: string): Promise<any> => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      subscription: true,
+      subscriptions: {
+        where: { status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
       _count: {
         select: {
           campaigns: true,
-          qrCodes: true,
+          reels: true,
         },
       },
     },
@@ -143,5 +161,7 @@ export const getUser = async (userId: string): Promise<any> => {
     throw new ApiError(404, 'User not found');
   }
 
-  return user;
+  const { subscriptions, ...rest } = user;
+
+  return { ...rest, subscription: subscriptions[0] ?? null };
 };

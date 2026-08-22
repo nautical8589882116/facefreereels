@@ -1,5 +1,5 @@
 import { prisma } from '../config/database';
-import razorpay, { verifyPaymentSignature, PLAN_CONFIG } from '../config/razorpay';
+import { getRazorpayClient, verifyPaymentSignature, PLAN_CONFIG } from '../config/razorpay';
 import { ApiError } from '../middleware/errorHandler';
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ export async function createOrder(userId: string, input: CreateOrderInput) {
     throw new ApiError(400, 'You already have an active subscription. Please cancel it before purchasing a new one.');
   }
 
-  const order = await razorpay.orders.create({
+  const order = await getRazorpayClient().orders.create({
     amount: config.amount,
     currency: 'INR',
     receipt: `sub_${userId}_${Date.now()}`,

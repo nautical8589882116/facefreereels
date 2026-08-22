@@ -110,7 +110,9 @@ export interface Settings {
 
 /* ────────────────────── axios instance ────────────────────── */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+// Same-origin by default: in production the Express server serves this SPA,
+// so '/api' resolves to the same App Service. Dev uses the Vite proxy.
+const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 export const api = axios.create({
   baseURL: API_URL,

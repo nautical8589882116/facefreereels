@@ -65,7 +65,7 @@ export async function createReel(
       voice: data.voice ?? 'en-US-JennyNeural',
       bgStyle: data.bgStyle ?? 'gradient',
       bgValue: data.bgValue ?? null,
-      captionStyle: data.captionStyle ?? Prisma.JsonNull,
+      captionStyle: (data.captionStyle ?? Prisma.JsonNull) as Prisma.InputJsonValue,
       duration: data.duration ?? 15,
     },
   })
@@ -94,7 +94,9 @@ export async function updateReel(
   if (data.voice !== undefined) updateData.voice = data.voice
   if (data.bgStyle !== undefined) updateData.bgStyle = data.bgStyle
   if (data.bgValue !== undefined) updateData.bgValue = data.bgValue
-  if (data.captionStyle !== undefined) updateData.captionStyle = data.captionStyle
+  if (data.captionStyle !== undefined) {
+    updateData.captionStyle = (data.captionStyle ?? Prisma.JsonNull) as Prisma.InputJsonValue
+  }
   if (data.duration !== undefined) updateData.duration = data.duration
 
   return prisma.reel.update({

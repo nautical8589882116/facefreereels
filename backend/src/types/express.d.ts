@@ -1,7 +1,12 @@
-import { AuthRequest } from '../middleware/auth'
+import 'express'
 
 declare global {
   namespace Express {
-    interface Request extends AuthRequest {}
+    interface Request {
+      user?: {
+        userId: string
+        phone: string
+      }
+    }
   }
 }

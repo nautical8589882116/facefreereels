@@ -8,11 +8,11 @@ export const getProfile = async (userId: string): Promise<any> => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      subscription: true,
+      subscriptions: true,
       _count: {
         select: {
           campaigns: true,
-          qrCodes: true,
+          reels: true,
         },
       },
     },
@@ -54,11 +54,11 @@ export const updateProfile = async (
       ...(data.avatar !== undefined && { avatar: data.avatar }),
     },
     include: {
-      subscription: true,
+      subscriptions: true,
       _count: {
         select: {
           campaigns: true,
-          qrCodes: true,
+          reels: true,
         },
       },
     },
@@ -78,11 +78,11 @@ export const updateAvatar = async (
     where: { id: userId },
     data: { avatar: fileUrl },
     include: {
-      subscription: true,
+      subscriptions: true,
       _count: {
         select: {
           campaigns: true,
-          qrCodes: true,
+          reels: true,
         },
       },
     },

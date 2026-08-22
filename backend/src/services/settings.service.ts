@@ -1,4 +1,5 @@
 import { prisma } from '../config/database';
+import { Prisma } from '@prisma/client';
 import { ApiError } from '../middleware/errorHandler';
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -69,7 +70,7 @@ export const DEFAULT_SETTINGS: Omit<FullSettingsInput, 'userId'> = {
 
 // ── Helper: Build selective data object ───────────────────────────────
 
-function buildUpdateData<T extends Record<string, unknown>>(
+function buildUpdateData<T extends object>(
   input: T,
   allowedKeys: (keyof T)[]
 ): Partial<T> {
@@ -158,7 +159,7 @@ export async function updateAllSettings(userId: string, input: FullSettingsInput
 
   const settings = await prisma.userSettings.update({
     where: { userId },
-    data,
+    data: data as Prisma.UserSettingsUpdateInput,
   });
 
   return settings;
@@ -177,7 +178,7 @@ export async function updateProductSettings(userId: string, input: ProductSettin
 
   const settings = await prisma.userSettings.update({
     where: { userId },
-    data,
+    data: data as Prisma.UserSettingsUpdateInput,
   });
 
   return settings;
@@ -196,7 +197,7 @@ export async function updateBrandSettings(userId: string, input: BrandSettingsIn
 
   const settings = await prisma.userSettings.update({
     where: { userId },
-    data,
+    data: data as Prisma.UserSettingsUpdateInput,
   });
 
   return settings;
@@ -215,7 +216,7 @@ export async function updateAISettings(userId: string, input: AISettingsInput) {
 
   const settings = await prisma.userSettings.update({
     where: { userId },
-    data,
+    data: data as Prisma.UserSettingsUpdateInput,
   });
 
   return settings;

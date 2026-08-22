@@ -1,4 +1,6 @@
 import 'dotenv/config'
+import path from 'node:path'
+import fs from 'node:fs'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -78,6 +80,21 @@ app.use('/api/analytics', authenticate, analyticsRoutes)
 app.use('/api/settings', authenticate, settingsRoutes)
 app.use('/api/platforms', authenticate, platformRoutes)
 app.use('/api/payments', authenticate, paymentRoutes)
+
+// ─── Static Frontend (single App Service hosts API + SPA) ────
+// The CI build copies webapp/dist into backend/public before packaging.
+const publicDir = path.join(__dirname, '..', 'public')
+
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir, { maxAge: '30d', index: false }))
+
+  // SPA fallback — anything that is not an /api route serves index.html
+  app.get(/^(?!\/api\/).*/, (_req, res, next) => {
+    res.sendFile(path.join(publicDir, 'index.html'), (err) => {
+      if (err) next(err)
+    })
+  })
+}
 
 // ─── Error Handling ──────────────────────────────────────────
 app.use(notFoundHandler)

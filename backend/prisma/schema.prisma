@@ -1,5 +1,8 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Azure App Service (Linux) runs a Debian-based Node image. Without the
+  // explicit target, the engine built on the CI runner fails to load there.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {

@@ -1,12 +1,23 @@
 import Razorpay from 'razorpay'
 import crypto from 'crypto'
+import { ApiError } from '../middleware/errorHandler'
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-})
+// Constructed lazily: Razorpay throws if key_id is missing, so building it at
+// module load would crash the whole server when payment env vars aren't set.
+let client: Razorpay | null = null
 
-export default razorpay
+export function getRazorpayClient(): Razorpay {
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    throw new ApiError(503, 'Payments are not configured on this server')
+  }
+  if (!client) {
+    client = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    })
+  }
+  return client
+}
 
 export function verifyPaymentSignature(
   orderId: string,
@@ -14,8 +25,11 @@ export function verifyPaymentSignature(
   signature: string
 ): boolean {
   const body = orderId + '|' + paymentId
+  if (!process.env.RAZORPAY_KEY_SECRET) {
+    throw new ApiError(503, 'Payments are not configured on this server')
+  }
   const expected = crypto
-    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
+    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
     .update(body)
     .digest('hex')
   return expected === signature

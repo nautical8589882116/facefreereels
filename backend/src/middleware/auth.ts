@@ -2,12 +2,9 @@ import { Request, Response, NextFunction } from 'express'
 import { verifyAccessToken } from '../config/auth'
 import { prisma } from '../config/database'
 
-export interface AuthRequest extends Request {
-  user?: {
-    userId: string
-    phone: string
-  }
-}
+// `user` is declared globally on Express.Request in ../types/express.d.ts,
+// so AuthRequest is just an alias kept for readability at call sites.
+export type AuthRequest = Request
 
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
   try {

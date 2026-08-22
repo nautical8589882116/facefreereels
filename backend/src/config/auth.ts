@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken'
+import jwt, { SignOptions } from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 
 const JWT_SECRET = process.env.JWT_SECRET!
@@ -14,15 +14,17 @@ export function comparePassword(password: string, hash: string): Promise<boolean
 }
 
 export function generateAccessToken(userId: string, phone: string): string {
-  return jwt.sign({ userId, phone, type: 'access' }, JWT_SECRET, {
-    expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
-  })
+  const options: SignOptions = {
+    expiresIn: (process.env.JWT_ACCESS_EXPIRY || '15m') as SignOptions['expiresIn'],
+  }
+  return jwt.sign({ userId, phone, type: 'access' }, JWT_SECRET, options)
 }
 
 export function generateRefreshToken(userId: string): string {
-  return jwt.sign({ userId, type: 'refresh' }, JWT_REFRESH_SECRET, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d',
-  })
+  const options: SignOptions = {
+    expiresIn: (process.env.JWT_REFRESH_EXPIRY || '7d') as SignOptions['expiresIn'],
+  }
+  return jwt.sign({ userId, type: 'refresh' }, JWT_REFRESH_SECRET, options)
 }
 
 export function verifyAccessToken(token: string): { userId: string; phone: string } {

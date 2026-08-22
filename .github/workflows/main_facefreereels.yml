@@ -80,9 +80,11 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    environment:
-      name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+    # NOTE: do not add a GitHub `environment:` here. It changes the OIDC subject
+    # claim to `repo:<owner>/<repo>:environment:<name>`, while Azure's federated
+    # credential is registered for the branch subject
+    # (`repo:<owner>/<repo>:ref:refs/heads/main`) — the mismatch fails login with
+    # AADSTS700213.
     permissions:
       id-token: write # This is required for requesting the JWT
       contents: read # This is required for actions/checkout

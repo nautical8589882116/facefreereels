@@ -1,4 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { toast } from 'sonner';
+import { generateAiCaption } from '@/lib/api';
 import {
   format,
   startOfMonth,
@@ -31,8 +33,38 @@ import {
   Trash2,
   ImagePlus,
   CalendarIcon,
+  Mic,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+/* ------------------------------------------------------------------ */
+/*  MINIMAL WEB SPEECH API TYPES                                      */
+/* ------------------------------------------------------------------ */
+
+interface SpeechRecognitionResultLike {
+  0: { transcript: string };
+}
+interface SpeechRecognitionEventLike extends Event {
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+interface SpeechRecognitionLike extends EventTarget {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onend: (() => void) | null;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                              */
@@ -174,8 +206,75 @@ function PostModal({ post, isOpen, onClose, onSave, onDelete, initialDate }: Pos
   const [status, setStatus] = useState<Status>('draft');
   const [dateStr, setDateStr] = useState('');
   const [timeStr, setTimeStr] = useState('09:00');
+  const [isListening, setIsListening] = useState(false);
+  const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const isEditing = !!post;
+
+  const speechSupported =
+    typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  // Stop any in-progress recording when the modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    }
+  }, [isOpen]);
+
+  const runAiCaption = useCallback(async (spokenInstruction: string) => {
+    const instruction = spokenInstruction.trim();
+    if (!instruction) {
+      toast.error("Didn't catch that — please try speaking again.");
+      return;
+    }
+    setIsGeneratingCaption(true);
+    try {
+      const generated = await generateAiCaption(instruction, selectedPlatforms);
+      setContent(generated);
+      toast.success('AI wrote your caption');
+    } catch {
+      toast.error('Could not generate a caption. Please try again.');
+    } finally {
+      setIsGeneratingCaption(false);
+    }
+  }, [selectedPlatforms]);
+
+  const handleMicClick = () => {
+    if (!speechSupported) {
+      toast.error('Voice input is not supported in this browser. Try Chrome or Edge.');
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) return;
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = 'en-IN';
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript ?? '';
+      runAiCaption(transcript);
+    };
+    recognition.onerror = () => {
+      toast.error('Could not hear you clearly. Please try again.');
+      setIsListening(false);
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    recognition.start();
+  };
 
   // Reset form when modal opens
   const resetForm = useCallback(() => {
@@ -313,7 +412,30 @@ function PostModal({ post, isOpen, onClose, onSave, onDelete, initialDate }: Pos
 
             {/* Content */}
             <div>
-              <label className="text-h4 text-warm-black mb-2 block">Caption / Description</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-h4 text-warm-black block">Caption / Description</label>
+                <button
+                  type="button"
+                  onClick={handleMicClick}
+                  disabled={isGeneratingCaption}
+                  title={speechSupported ? 'Speak to AI to write this post' : 'Voice input not supported in this browser'}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all disabled:opacity-60 disabled:cursor-not-allowed',
+                    isListening
+                      ? 'border-danger bg-danger-light text-danger animate-pulse'
+                      : isGeneratingCaption
+                        ? 'border-caramel bg-caramel/10 text-caramel'
+                        : 'border-caramel/40 bg-caramel/5 text-caramel hover:bg-caramel/10'
+                  )}
+                >
+                  {isGeneratingCaption ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Mic size={13} />
+                  )}
+                  {isGeneratingCaption ? 'Writing…' : isListening ? 'Listening…' : 'AI Write'}
+                </button>
+              </div>
               <textarea
                 value={content}
                 onChange={e => setContent(e.target.value)}

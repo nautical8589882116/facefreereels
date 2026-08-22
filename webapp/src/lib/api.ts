@@ -359,4 +359,11 @@ export async function verifyPayment(data: {
   return response.data
 }
 
+/* ────────────────────── AI caption API ────────────────────── */
+
+export async function generateAiCaption(instruction: string, platforms?: string[]) {
+  const response = await api.post('/scheduler/posts/ai-caption', { instruction, platforms })
+  return response.data.data.content as string
+}
+
 export default api

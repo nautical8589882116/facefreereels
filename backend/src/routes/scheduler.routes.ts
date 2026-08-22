@@ -6,6 +6,7 @@ import { AuthRequest } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { ApiError } from '../middleware/errorHandler'
 import * as schedulerService from '../services/scheduler.service'
+import * as aiService from '../services/ai.service'
 import { Platform, PostStatus } from '@prisma/client'
 
 const router = Router()
@@ -32,6 +33,11 @@ const updatePostSchema = z.object({
 
 const updateStatusSchema = z.object({
   status: z.nativeEnum(PostStatus),
+})
+
+const aiCaptionSchema = z.object({
+  instruction: z.string().min(1, 'Instruction is required').max(2000),
+  platforms: z.array(z.nativeEnum(Platform)).optional(),
 })
 
 // ─── List Posts ───────────────────────────────────────────────
@@ -94,6 +100,21 @@ router.post('/posts', validate(createPostSchema), async (req: AuthRequest, res, 
     })
 
     return successResponse(res, post, 'Scheduled post created', 201)
+  } catch (err) {
+    next(err)
+  }
+})
+
+// ─── AI Caption Generation ─────────────────────────────────────
+
+router.post('/posts/ai-caption', validate(aiCaptionSchema), async (req: AuthRequest, res, next) => {
+  try {
+    const userId = req.user!.userId
+    const { instruction, platforms } = req.body as z.infer<typeof aiCaptionSchema>
+
+    const content = await aiService.generatePostCaption(userId, instruction, platforms ?? [])
+
+    return successResponse(res, { content }, 'Caption generated')
   } catch (err) {
     next(err)
   }

@@ -15,6 +15,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "@prisma/client": "^5.15.0",
     "express": "^4.19.2",
     "cors": "^2.8.5",

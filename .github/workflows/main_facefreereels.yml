@@ -24,7 +24,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read # This is required for actions/checkout
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -72,22 +72,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          # Only the backend folder is deployed — it now contains dist/,
-          # public/ (the SPA), prisma/, node_modules/ and package.json.
           path: backend
           include-hidden-files: true
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    # NOTE: do not add a GitHub `environment:` here. It changes the OIDC subject
-    # claim to `repo:<owner>/<repo>:environment:<name>`, while Azure's federated
-    # credential is registered for the branch subject
-    # (`repo:<owner>/<repo>:ref:refs/heads/main`) — the mismatch fails login with
-    # AADSTS700213.
     permissions:
-      id-token: write # This is required for requesting the JWT
-      contents: read # This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
       - name: Download artifact from build job

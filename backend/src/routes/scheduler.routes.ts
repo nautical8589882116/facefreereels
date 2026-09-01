@@ -5,11 +5,13 @@ import { successResponse, paginatedResponse } from '../utils/response'
 import { AuthRequest } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { ApiError } from '../middleware/errorHandler'
-import * as schedulerService from '../services/scheduler.service'
+import * as schedulerServiceRaw from '../services/scheduler.service'
 import * as aiService from '../services/ai.service'
+import { instrumentServiceModule } from '../utils/logger'
 import { Platform, PostStatus } from '@prisma/client'
 
 const router = Router()
+const schedulerService = instrumentServiceModule('SchedulerService', schedulerServiceRaw)
 
 // ─── Validation Schemas ──────────────────────────────────────
 

@@ -6,20 +6,25 @@ import {
   verifyRefreshToken,
 } from '../config/auth';
 import { sendOtp as sendOtpSms } from '../config/otp';
+import { isDemoLogin, isDemoPhone } from '../config/demoLogin';
 import { ApiError } from '../middleware/errorHandler';
 
+const DEV_OTP_BYPASS = process.env.DEV_OTP_BYPASS === 'true';
+const DEV_OTP_CODE = process.env.DEV_OTP_CODE || '000000';
+
 /**
- * Send OTP to a phone number
- * Creates an OTP record in the database and sends it via SMS
+ * Send OTP to a phone number.
+ * Creates an OTP record in the database and sends it via SMS.
+ * In dev mode with DEV_OTP_BYPASS=true, SMS is skipped and a fixed code can be used.
  */
 export const sendOtp = async (phone: string): Promise<void> => {
-  // Generate a 6-digit OTP
-  const code = generateOtp();
+  if (isDemoPhone(phone)) {
+    return;
+  }
 
-  // Set expiry to 10 minutes from now
+  const code = generateOtp();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-  // Invalidate any existing unverified OTPs for this phone
   await prisma.otp.updateMany({
     where: {
       phone,
@@ -31,7 +36,6 @@ export const sendOtp = async (phone: string): Promise<void> => {
     },
   });
 
-  // Create new OTP record
   await prisma.otp.create({
     data: {
       phone,
@@ -41,76 +45,108 @@ export const sendOtp = async (phone: string): Promise<void> => {
     },
   });
 
-  // Send OTP via SMS
+  if (DEV_OTP_BYPASS) {
+    // eslint-disable-next-line no-console
+    console.log(`[DEV OTP BYPASS] Phone: ${phone} | Real code: ${code} | Bypass code: ${DEV_OTP_CODE}`);
+    return;
+  }
+
   await sendOtpSms(phone, code);
 };
 
 /**
- * Verify OTP and authenticate user
- * Checks OTP validity, marks as verified, finds or creates user, returns tokens
+ * Verify OTP and authenticate user.
+ * Checks OTP validity, marks it verified, finds or creates user, returns tokens.
  */
 export const verifyOtp = async (
   phone: string,
-  code: string
-): Promise<{ user: any; accessToken: string; refreshToken: string }> => {
-  // Find the OTP record
-  const otpRecord = await prisma.otp.findFirst({
-    where: {
-      phone,
-      code,
-      verified: false,
-      expiresAt: { gt: new Date() },
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
+  code: string,
+  name?: string
+): Promise<{ user: any; accessToken: string; refreshToken: string; isNewUser: boolean }> => {
+  const demoLogin = isDemoLogin(phone, code);
+  let otpRecord = demoLogin
+    ? null
+    : await prisma.otp.findFirst({
+        where: {
+          phone,
+          code,
+          verified: false,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
 
-  if (!otpRecord) {
+  if (!otpRecord && DEV_OTP_BYPASS && code === DEV_OTP_CODE) {
+    otpRecord = await prisma.otp.findFirst({
+      where: {
+        phone,
+        verified: false,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    // eslint-disable-next-line no-console
+    console.log(`[DEV OTP BYPASS] Verified ${phone} using bypass code ${DEV_OTP_CODE}`);
+  }
+
+  if (!otpRecord && !demoLogin) {
     throw new ApiError(400, 'Invalid or expired OTP');
   }
 
-  // Mark OTP as verified
-  await prisma.otp.update({
-    where: { id: otpRecord.id },
-    data: { verified: true },
-  });
+  if (otpRecord) {
+    await prisma.otp.update({
+      where: { id: otpRecord.id },
+      data: { verified: true },
+    });
+  }
 
-  // Find or create user by phone number
   let user = await prisma.user.findUnique({
     where: { phone },
   });
+
+  let isNewUser = false;
+  const trimmedName = name?.trim();
 
   if (!user) {
     user = await prisma.user.create({
       data: {
         phone,
-        name: null,
+        name: trimmedName || null,
         email: null,
         avatar: null,
         role: 'USER',
         isVerified: true,
       },
     });
-  } else if (!user.isVerified) {
+    isNewUser = true;
+  } else if (!user.isVerified || (trimmedName && !user.name)) {
+    const wasUnverified = !user.isVerified;
     user = await prisma.user.update({
       where: { id: user.id },
-      data: { isVerified: true },
+      data: {
+        ...(wasUnverified && { isVerified: true }),
+        ...(trimmedName && !user.name && { name: trimmedName }),
+      },
     });
+    isNewUser = wasUnverified;
   }
 
-  // Generate tokens
   const accessToken = generateAccessToken(user.id, user.phone);
   const refreshToken = generateRefreshToken(user.id);
 
-  return { user, accessToken, refreshToken };
+  return { user, accessToken, refreshToken, isNewUser };
 };
 
 /**
- * Refresh access token using a refresh token
+ * Refresh access token using a refresh token.
  */
 export const refreshToken = async (token: string): Promise<{ accessToken: string }> => {
   let decoded: { userId: string };
+
   try {
     decoded = verifyRefreshToken(token);
   } catch {
@@ -121,7 +157,6 @@ export const refreshToken = async (token: string): Promise<{ accessToken: string
     throw new ApiError(401, 'Invalid refresh token');
   }
 
-  // Check if user still exists
   const user = await prisma.user.findUnique({
     where: { id: decoded.userId },
   });
@@ -130,14 +165,13 @@ export const refreshToken = async (token: string): Promise<{ accessToken: string
     throw new ApiError(401, 'User not found');
   }
 
-  // Generate new access token
   const accessToken = generateAccessToken(user.id, user.phone);
 
   return { accessToken };
 };
 
 /**
- * Get current user with subscription info
+ * Get current user with subscription info.
  */
 export const getUser = async (userId: string): Promise<any> => {
   const user = await prisma.user.findUnique({
@@ -152,6 +186,7 @@ export const getUser = async (userId: string): Promise<any> => {
         select: {
           campaigns: true,
           reels: true,
+          assets: true,
         },
       },
     },
@@ -161,7 +196,28 @@ export const getUser = async (userId: string): Promise<any> => {
     throw new ApiError(404, 'User not found');
   }
 
-  const { subscriptions, ...rest } = user;
-
-  return { ...rest, subscription: subscriptions[0] ?? null };
+  return user;
 };
+
+export function formatUserForClient(user: any, isNewUser = false) {
+  const subscription = user.subscriptions?.[0] ?? user.subscription ?? null;
+
+  return {
+    id: user.id,
+    phone: user.phone,
+    name: user.name,
+    email: user.email,
+    role: user.role?.toLowerCase() ?? 'user',
+    isNewUser,
+    subscription: subscription
+      ? {
+          id: subscription.id,
+          plan: subscription.plan?.toLowerCase() ?? 'free',
+          status: subscription.status?.toLowerCase() ?? 'active',
+          expiresAt: subscription.expiresAt?.toISOString() ?? null,
+          razorpaySubscriptionId: subscription.razorpayPaymentId ?? null,
+        }
+      : null,
+    createdAt: user.createdAt?.toISOString?.() ?? user.createdAt,
+  };
+}

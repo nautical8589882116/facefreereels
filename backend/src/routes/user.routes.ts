@@ -4,9 +4,11 @@ import { successResponse } from '../utils/response';
 import { validate } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import { ApiError } from '../middleware/errorHandler';
-import * as UserService from '../services/user.service';
+import * as UserServiceRaw from '../services/user.service';
+import { instrumentServiceModule } from '../utils/logger';
 
 const router = Router();
+const UserService = instrumentServiceModule('UserService', UserServiceRaw);
 
 // ── Validation Schemas ────────────────────────────────────────────────
 

@@ -1,5 +1,7 @@
 import { prisma } from '../config/database'
 import { Prisma } from '@prisma/client'
+import { renderReel } from './reel.render'
+import { uploadBuffer } from '../config/supabase'
 
 export interface ReelFilters {
   status?: string
@@ -65,7 +67,10 @@ export async function createReel(
       voice: data.voice ?? 'en-US-JennyNeural',
       bgStyle: data.bgStyle ?? 'gradient',
       bgValue: data.bgValue ?? null,
-      captionStyle: (data.captionStyle ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+      captionStyle:
+        data.captionStyle == null
+          ? Prisma.JsonNull
+          : (data.captionStyle as Prisma.InputJsonValue),
       duration: data.duration ?? 15,
     },
   })
@@ -94,9 +99,11 @@ export async function updateReel(
   if (data.voice !== undefined) updateData.voice = data.voice
   if (data.bgStyle !== undefined) updateData.bgStyle = data.bgStyle
   if (data.bgValue !== undefined) updateData.bgValue = data.bgValue
-  if (data.captionStyle !== undefined) {
-    updateData.captionStyle = (data.captionStyle ?? Prisma.JsonNull) as Prisma.InputJsonValue
-  }
+  if (data.captionStyle !== undefined)
+    updateData.captionStyle =
+      data.captionStyle === null
+        ? Prisma.JsonNull
+        : (data.captionStyle as Prisma.InputJsonValue)
   if (data.duration !== undefined) updateData.duration = data.duration
 
   return prisma.reel.update({
@@ -131,9 +138,7 @@ export async function triggerGeneration(id: string, userId: string) {
   const reel = await prisma.reel.findFirst({ where: { id, userId } })
   if (!reel) return null
 
-  // Mock: just update status to PROCESSING
-  // In production, this would queue a background job
-  return prisma.reel.update({
+  const processing = await prisma.reel.update({
     where: { id },
     data: {
       status: 'PROCESSING',
@@ -141,4 +146,36 @@ export async function triggerGeneration(id: string, userId: string) {
       thumbnailUrl: null,
     },
   })
+
+  // Fire-and-forget render + store. Frontend polls GET /reels/:id for READY/FAILED.
+  void generateAndStoreReel(id, userId)
+
+  return processing
+}
+
+/**
+ * Render the reel to an MP4 (ffmpeg), upload it + a thumbnail to Supabase
+ * Storage, and flip the reel to READY with the public URLs. On any failure the
+ * reel is marked FAILED so the UI can surface it.
+ */
+export async function generateAndStoreReel(id: string, userId: string) {
+  try {
+    const reel = await prisma.reel.findFirst({ where: { id, userId } })
+    if (!reel) return
+
+    const { videoBuffer, thumbBuffer } = await renderReel(reel)
+    const base = `reels/${userId}/${id}-${Date.now()}`
+
+    const video = await uploadBuffer(`${base}.mp4`, videoBuffer, 'video/mp4')
+    const thumb = await uploadBuffer(`${base}.jpg`, thumbBuffer, 'image/jpeg')
+
+    await prisma.reel.update({
+      where: { id },
+      data: { status: 'READY', videoUrl: video.publicUrl, thumbnailUrl: thumb.publicUrl },
+    })
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(`[reel.generate] failed for ${id}:`, err instanceof Error ? err.message : err)
+    await prisma.reel.update({ where: { id }, data: { status: 'FAILED' } }).catch(() => {})
+  }
 }

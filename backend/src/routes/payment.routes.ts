@@ -5,9 +5,11 @@ import { successResponse } from '../utils/response';
 import { validate } from '../middleware/validate';
 import { AuthRequest } from '../middleware/auth';
 import { ApiError } from '../middleware/errorHandler';
-import * as PaymentService from '../services/payment.service';
+import * as PaymentServiceRaw from '../services/payment.service';
+import { instrumentServiceModule } from '../utils/logger';
 
 const router = Router();
+const PaymentService = instrumentServiceModule('PaymentService', PaymentServiceRaw);
 
 // ── Validation Schemas ────────────────────────────────────────────────
 

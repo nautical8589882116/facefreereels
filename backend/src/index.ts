@@ -5,11 +5,11 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import compression from 'compression'
-import morgan from 'morgan'
 import rateLimit from 'express-rate-limit'
 
 import { errorHandler, notFoundHandler } from './middleware/errorHandler'
 import { authenticate } from './middleware/auth'
+import { apiLogger, requestContextMiddleware } from './utils/logger'
 
 // ─── Route Imports ───────────────────────────────────────────
 import authRoutes from './routes/auth.routes'
@@ -24,6 +24,8 @@ import settingsRoutes from './routes/settings.routes'
 import platformRoutes from './routes/platform.routes'
 import paymentRoutes from './routes/payment.routes'
 import oauthRoutes from './routes/oauth.routes'
+import jobsRoutes from './routes/jobs.routes'
+import { startScheduledPublisherJob } from './jobs/scheduledPublisher.job'
 
 const app = express()
 const PORT = parseInt(process.env.PORT || '4000')
@@ -32,10 +34,20 @@ const PORT = parseInt(process.env.PORT || '4000')
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }))
+const allowedOrigins = process.env.FRONTEND_URL?.split(',')
 app.use(cors({
-  origin: process.env.FRONTEND_URL?.split(',') || ['http://localhost:5173', 'http://localhost:4173'],
+  origin: (origin, callback) => {
+    // Allow same-origin / curl (no origin), explicit allowlist, and any localhost port in dev
+    if (!origin) return callback(null, true)
+    if (allowedOrigins?.includes(origin)) return callback(null, true)
+    if (process.env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true)
+    }
+    return callback(new Error(`Origin ${origin} not allowed by CORS`))
+  },
   credentials: true,
 }))
+app.use(requestContextMiddleware)
 
 // ─── Rate Limiting ───────────────────────────────────────────
 const limiter = rateLimit({
@@ -57,9 +69,18 @@ app.use(limiter)
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(compression())
-app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'))
+app.use(apiLogger)
 
-// ─── Health Check ────────────────────────────────────────────
+// ─── Root & Health ───────────────────────────────────────────
+app.get('/', (_req, res) => {
+  res.json({
+    success: true,
+    message: 'NHY-QR Ad Manager API',
+    health: '/api/health',
+    apiBase: '/api',
+  })
+})
+
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: 'NHY-QR Ad Manager API is running', timestamp: new Date().toISOString() })
 })
@@ -68,6 +89,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authLimiter, authRoutes)
 app.use('/api/oauth', oauthRoutes)
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }), paymentRoutes)
+app.use('/api/jobs', jobsRoutes)
 
 // ─── Protected Routes ────────────────────────────────────────
 app.use('/api/user', authenticate, userRoutes)
@@ -101,9 +123,13 @@ app.use(notFoundHandler)
 app.use(errorHandler)
 
 // ─── Start Server ────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`🚀 NHY-QR Ad Manager API running on port ${PORT}`)
-  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`)
-})
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`🚀 NHY-QR Ad Manager API running on port ${PORT}`)
+    console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`)
+  })
+}
+
+startScheduledPublisherJob()
 
 export default app

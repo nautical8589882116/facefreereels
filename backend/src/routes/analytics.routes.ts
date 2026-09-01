@@ -6,9 +6,11 @@ import { AuthRequest } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { ApiError } from '../middleware/errorHandler'
 import { Platform } from '@prisma/client'
-import * as analyticsService from '../services/analytics.service'
+import * as analyticsServiceRaw from '../services/analytics.service'
+import { instrumentServiceModule } from '../utils/logger'
 
 const router = Router()
+const analyticsService = instrumentServiceModule('AnalyticsService', analyticsServiceRaw)
 
 // ─── Validation Schemas ──────────────────────────────────────
 

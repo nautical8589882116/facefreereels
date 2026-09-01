@@ -1,12 +1,14 @@
 import 'express'
 
+// Augment Express's own User type so `req.user` carries our JWT payload.
+// (@types/passport already declares `Request.user?: User`; we only add fields.)
 declare global {
   namespace Express {
-    interface Request {
-      user?: {
-        userId: string
-        phone: string
-      }
+    interface User {
+      userId: string
+      phone: string
     }
   }
 }
+
+export {}

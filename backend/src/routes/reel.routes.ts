@@ -4,9 +4,11 @@ import { successResponse, paginatedResponse } from '../utils/response'
 import { AuthRequest } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { ApiError } from '../middleware/errorHandler'
-import * as reelService from '../services/reel.service'
+import * as reelServiceRaw from '../services/reel.service'
+import { instrumentServiceModule } from '../utils/logger'
 
 const router = Router()
+const reelService = instrumentServiceModule('ReelService', reelServiceRaw)
 
 // ─── Validation Schemas ──────────────────────────────────────
 

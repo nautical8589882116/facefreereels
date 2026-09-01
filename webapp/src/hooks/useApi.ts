@@ -18,6 +18,7 @@ import {
   disconnectPlatform,
   setPrimaryAccount,
   toggleAccountActive,
+  testPlatformConnection,
   fetchSubscription,
   fetchPlans,
   createOrder,
@@ -106,7 +107,13 @@ export function usePlatformAccounts() {
   })
 }
 
+// Sentinel: the OAuth popup was dismissed without reporting a result, so we
+// genuinely do not know whether the connection succeeded.
+const OAUTH_WINDOW_CLOSED = '__oauth_window_closed__'
+
 export function useConnectPlatform() {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: async (platform: string) => {
       const { authUrl } = await connectPlatform(platform)
@@ -129,31 +136,65 @@ export function useConnectPlatform() {
         throw new Error('Popup blocked')
       }
 
+      // The callback popup posts back { type:'oauth', ok, message }. Resolve or
+      // reject on that; fall back to popup-closed (manual close) as a safety net.
       return new Promise<void>((resolve, reject) => {
+        let settled = false
+        const cleanup = () => {
+          settled = true
+          window.removeEventListener('message', onMessage)
+          clearInterval(checkClosed)
+          clearTimeout(timeout)
+        }
+        const onMessage = (e: MessageEvent) => {
+          const data = e.data as { type?: string; ok?: boolean; message?: string }
+          if (data?.type !== 'oauth') return
+          cleanup()
+          try { popup.close() } catch { /* ignore */ }
+          if (data.ok) resolve()
+          else reject(new Error(data.message || 'Connection failed'))
+        }
+        window.addEventListener('message', onMessage)
+
         const checkClosed = setInterval(() => {
-          if (popup.closed) {
-            clearInterval(checkClosed)
-            resolve()
+          if (popup.closed && !settled) {
+            cleanup()
+            // Do NOT resolve here. The callback page always postMessages its
+            // result before closing, so reaching this branch means we never got
+            // one — the window was dismissed, or the callback errored out. The
+            // old code resolved, which fired the "Platform connected" toast for
+            // connections that were never stored (the Facebook symptom).
+            reject(new Error(OAUTH_WINDOW_CLOSED))
           }
         }, 500)
 
-        // Timeout after 5 minutes
-        setTimeout(() => {
-          clearInterval(checkClosed)
-          popup.close()
-          reject(new Error('Connection timeout'))
+        const timeout = setTimeout(() => {
+          if (!settled) {
+            cleanup()
+            try { popup.close() } catch { /* ignore */ }
+            reject(new Error('Connection timed out'))
+          }
         }, 5 * 60 * 1000)
       })
     },
     onSuccess: () => {
-      toast.success('Platform connected successfully')
+      queryClient.invalidateQueries({ queryKey: platformAccountsKey })
+      toast.success('Platform connected')
     },
     onError: (err: any) => {
-      if (err.message !== 'Popup blocked') {
-        toast.error('Failed to connect platform', {
-          description: err.response?.data?.message || 'Please try again.',
+      // Refetch regardless — a partial connect may still have stored the account.
+      queryClient.invalidateQueries({ queryKey: platformAccountsKey })
+      if (err.message === 'Popup blocked') return
+      if (err.message === OAUTH_WINDOW_CLOSED) {
+        toast.warning('Connection not confirmed', {
+          description:
+            'The authorization window closed before the platform confirmed it. Check the list below — if the account is not there, try connecting again.',
         })
+        return
       }
+      toast.error('Failed to connect platform', {
+        description: err.message || err.response?.data?.message || 'Please try again.',
+      })
     },
   })
 }
@@ -203,6 +244,28 @@ export function useToggleAccountActive() {
     },
     onError: (err: any) => {
       toast.error('Failed to toggle account', {
+        description: err.response?.data?.message || 'Please try again.',
+      })
+    },
+  })
+}
+
+export function useTestConnection() {
+  return useMutation({
+    mutationFn: testPlatformConnection,
+    onSuccess: (result) => {
+      if (result.ok) {
+        toast.success('Connection works', {
+          description: result.detail ? `Reached ${result.detail}` : undefined,
+        })
+      } else {
+        toast.error('Connection failed', {
+          description: result.error || 'Token invalid or missing permissions.',
+        })
+      }
+    },
+    onError: (err: any) => {
+      toast.error('Could not test connection', {
         description: err.response?.data?.message || 'Please try again.',
       })
     },

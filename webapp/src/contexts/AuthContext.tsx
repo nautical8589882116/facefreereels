@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { sendOtp, verifyOtp, fetchMe, type User } from '@/lib/api'
+import { sendOtp, verifyOtp, fetchMe, updateUserProfile, type User } from '@/lib/api'
 
 /* ────────────────────── types ────────────────────── */
 
@@ -94,6 +94,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // If user is new and no name was provided, signal that onboarding is needed
       if (data.user.isNewUser && !name) {
+        localStorage.setItem('accessToken', data.tokens.accessToken)
+        localStorage.setItem('refreshToken', data.tokens.refreshToken)
         setNeedsOnboarding(true)
         return { needsOnboarding: true }
       }
@@ -110,7 +112,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           : `Welcome back, ${data.user.name || 'User'}!`,
       })
 
-      navigate('/dashboard')
+      navigate('/app/dashboard')
       return { needsOnboarding: false }
     } catch (err: any) {
       const message = err.response?.data?.message || 'Invalid OTP'
@@ -125,18 +127,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const completeOnboarding = useCallback(async (phone: string, code: string, name: string) => {
     try {
       setIsLoading(true)
-      const data = await verifyOtp(phone, code, name)
+      let userData: User
 
-      localStorage.setItem('accessToken', data.tokens.accessToken)
-      localStorage.setItem('refreshToken', data.tokens.refreshToken)
-      setUser(data.user)
+      const storedToken = localStorage.getItem('accessToken')
+      if (!storedToken || storedToken === 'undefined' || storedToken === 'null') {
+        const data = await verifyOtp(phone, code, name)
+        localStorage.setItem('accessToken', data.tokens.accessToken)
+        localStorage.setItem('refreshToken', data.tokens.refreshToken)
+        userData = data.user
+      } else {
+        await updateUserProfile({ name })
+        userData = await fetchMe()
+      }
+
+      setUser(userData)
       setNeedsOnboarding(false)
 
       toast.success('Welcome!', {
-        description: `Your account has been created, ${data.user.name || 'User'}!`,
+        description: `Your account has been created, ${userData.name || 'User'}!`,
       })
 
-      navigate('/dashboard')
+      navigate('/app/dashboard')
     } catch (err: any) {
       const message = err.response?.data?.message || 'Failed to complete signup'
       toast.error('Signup failed', { description: message })

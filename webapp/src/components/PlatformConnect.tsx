@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Instagram,
-  Facebook,
-  Youtube,
+  Camera as Instagram,
+  MessagesSquare as Facebook,
+  PlaySquare as Youtube,
   Check,
   X,
   Plus,
@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Loader2,
   UserCircle,
+  Wifi,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -21,6 +22,7 @@ import {
   useDisconnectPlatform,
   useSetPrimaryAccount,
   useToggleAccountActive,
+  useTestConnection,
 } from '@/hooks/useApi'
 import { cn } from '@/lib/utils'
 
@@ -99,6 +101,8 @@ function AccountCard({
   isDisconnecting: boolean
 }) {
   const [showPermissions, setShowPermissions] = useState(false)
+  const testMutation = useTestConnection()
+  const testResult = testMutation.data
 
   return (
     <motion.div
@@ -163,6 +167,27 @@ function AccountCard({
             ) : (
               <ToggleLeft size={28} className="text-sand" />
             )}
+          </button>
+
+          {/* Test Connection */}
+          <button
+            onClick={() => testMutation.mutate(account.id)}
+            disabled={testMutation.isPending}
+            className={cn(
+              'p-1.5 rounded-lg transition-colors disabled:opacity-50',
+              testResult?.ok === true && 'text-success',
+              testResult?.ok === false && 'text-danger',
+              testResult === undefined && 'text-stone hover:text-warm-black hover:bg-cream'
+            )}
+            title={
+              testResult
+                ? testResult.ok
+                  ? `Connection OK${testResult.detail ? ` — ${testResult.detail}` : ''}`
+                  : `Failed: ${testResult.error}`
+                : 'Test connection'
+            }
+          >
+            {testMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Wifi size={14} />}
           </button>
 
           {/* Set Primary */}

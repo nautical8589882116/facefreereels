@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Image,
@@ -23,13 +23,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Play,
-  
-  
   Tag,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
+import { fetchAssets, uploadAsset, deleteAsset, type Asset as ApiAsset } from '@/lib/api'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -98,210 +98,53 @@ function platformLabel(p: Platform): string {
   }
 }
 
+function mapApiAssetToUiAsset(apiAsset: ApiAsset): Asset {
+  const sizeMB = apiAsset.size / (1024 * 1024)
+  const dateObj = new Date(apiAsset.createdAt)
 
-/* ------------------------------------------------------------------ */
-/*  Mock Data                                                          */
-/* ------------------------------------------------------------------ */
+  const urlParts = apiAsset.url.split('/')
+  const filename = urlParts[urlParts.length - 1] || apiAsset.name
 
-const MOCK_ASSETS: Asset[] = [
-  /* Images (12) */
-  {
-    id: '1', filename: 'nhyqr-app-mockup-1.jpg', name: 'App Main Screen',
-    type: 'image', size: '2.4 MB', sizeMB: 2.4,
-    date: 'Jun 14, 2024', dateObj: new Date(2024, 5, 14),
-    tags: ['app', 'product', 'menu'], platforms: ['instagram', 'facebook'],
-    dimensions: '800 x 600', thumbnail: '/nhyqr-app-mockup-1.jpg',
-    usedIn: [{ campaign: 'Summer Menu Launch', platform: 'instagram' }, { campaign: 'Product Showcase', platform: 'facebook' }],
-  },
-  {
-    id: '2', filename: 'nhyqr-qr-placemat.jpg', name: 'QR Table Setup',
-    type: 'image', size: '1.8 MB', sizeMB: 1.8,
-    date: 'Jun 13, 2024', dateObj: new Date(2024, 5, 13),
-    tags: ['qr', 'restaurant', 'demo'], platforms: ['instagram', 'youtube'],
-    dimensions: '800 x 600', thumbnail: '/nhyqr-qr-placemat.jpg',
-    usedIn: [{ campaign: 'QR Demo Reel', platform: 'youtube' }],
-  },
-  {
-    id: '3', filename: 'nhyqr-dashboard-preview.jpg', name: 'Admin Dashboard',
-    type: 'image', size: '3.1 MB', sizeMB: 3.1,
-    date: 'Jun 12, 2024', dateObj: new Date(2024, 5, 12),
-    tags: ['dashboard', 'product', 'admin'], platforms: ['facebook'],
-    dimensions: '800 x 600', thumbnail: '/nhyqr-dashboard-preview.jpg',
-    usedIn: [{ campaign: 'Admin Features Ad', platform: 'facebook' }],
-  },
-  {
-    id: '4', filename: 'nhyqr-restaurant-scene.jpg', name: 'Restaurant Interior',
-    type: 'image', size: '2.2 MB', sizeMB: 2.2,
-    date: 'Jun 10, 2024', dateObj: new Date(2024, 5, 10),
-    tags: ['background', 'restaurant'], platforms: ['instagram', 'facebook', 'youtube'],
-    dimensions: '1080 x 1920', thumbnail: '/nhyqr-restaurant-scene.jpg',
-    usedIn: [{ campaign: 'Restaurant Ambiance', platform: 'instagram' }, { campaign: 'Welcome Reel', platform: 'youtube' }],
-  },
-  {
-    id: '5', filename: 'nhyqr-cafe-scene.jpg', name: 'Cafe Morning Scene',
-    type: 'image', size: '1.9 MB', sizeMB: 1.9,
-    date: 'Jun 9, 2024', dateObj: new Date(2024, 5, 9),
-    tags: ['background', 'cafe'], platforms: ['instagram'],
-    dimensions: '1080 x 1920', thumbnail: '/nhyqr-cafe-scene.jpg',
-    usedIn: [{ campaign: 'Cafe Promo', platform: 'instagram' }],
-  },
-  {
-    id: '6', filename: 'nhyqr-hotel-scene.jpg', name: 'Hotel Dining Setup',
-    type: 'image', size: '2.5 MB', sizeMB: 2.5,
-    date: 'Jun 8, 2024', dateObj: new Date(2024, 5, 8),
-    tags: ['background', 'hotel'], platforms: ['facebook', 'youtube'],
-    dimensions: '1080 x 1920', thumbnail: '/nhyqr-hotel-scene.jpg',
-    usedIn: [{ campaign: 'Hotel Showcase', platform: 'youtube' }],
-  },
-  {
-    id: '7', filename: 'menu-items-grid.jpg', name: 'Menu Items Grid',
-    type: 'image', size: '1.6 MB', sizeMB: 1.6,
-    date: 'Jun 7, 2024', dateObj: new Date(2024, 5, 7),
-    tags: ['menu', 'food', 'product'], platforms: ['instagram', 'facebook'],
-    dimensions: '1200 x 900', thumbnail: '/nhyqr-app-mockup-1.jpg',
-    usedIn: [{ campaign: 'Summer Menu Launch', platform: 'instagram' }],
-  },
-  {
-    id: '8', filename: 'qr-code-closeup.jpg', name: 'QR Code Closeup',
-    type: 'qr-mockup', size: '0.8 MB', sizeMB: 0.8,
-    date: 'Jun 6, 2024', dateObj: new Date(2024, 5, 6),
-    tags: ['qr', 'closeup'], platforms: ['instagram', 'facebook', 'youtube'],
-    dimensions: '600 x 600', thumbnail: '/nhyqr-qr-placemat.jpg',
-    usedIn: [{ campaign: 'QR Awareness', platform: 'facebook' }, { campaign: 'Setup Tutorial', platform: 'youtube' }],
-  },
-  {
-    id: '9', filename: 'chef-hands-plating.jpg', name: 'Chef Plating',
-    type: 'image', size: '2.1 MB', sizeMB: 2.1,
-    date: 'Jun 5, 2024', dateObj: new Date(2024, 5, 5),
-    tags: ['food', 'kitchen', 'background'], platforms: ['instagram', 'youtube'],
-    dimensions: '1080 x 1350', thumbnail: '/nhyqr-restaurant-scene.jpg',
-    usedIn: [{ campaign: 'Behind the Scenes', platform: 'instagram' }],
-  },
-  {
-    id: '10', filename: 'happy-customer-scanning.jpg', name: 'Customer Scanning QR',
-    type: 'image', size: '1.7 MB', sizeMB: 1.7,
-    date: 'Jun 4, 2024', dateObj: new Date(2024, 5, 4),
-    tags: ['customer', 'qr', 'lifestyle'], platforms: ['instagram', 'facebook'],
-    dimensions: '800 x 1000', thumbnail: '/nhyqr-cafe-scene.jpg',
-    usedIn: [{ campaign: 'Customer Stories', platform: 'instagram' }, { campaign: 'Trust Builder', platform: 'facebook' }],
-  },
-  {
-    id: '11', filename: 'app-on-ipad.jpg', name: 'App on iPad',
-    type: 'image', size: '2.3 MB', sizeMB: 2.3,
-    date: 'Jun 3, 2024', dateObj: new Date(2024, 5, 3),
-    tags: ['app', 'product', 'ipad'], platforms: ['facebook'],
-    dimensions: '1200 x 900', thumbnail: '/nhyqr-dashboard-preview.jpg',
-    usedIn: [{ campaign: 'iPad Showcase', platform: 'facebook' }],
-  },
-  {
-    id: '12', filename: 'restaurant-exterior.jpg', name: 'Restaurant Exterior',
-    type: 'image', size: '2.8 MB', sizeMB: 2.8,
-    date: 'Jun 2, 2024', dateObj: new Date(2024, 5, 2),
-    tags: ['restaurant', 'exterior'], platforms: ['instagram', 'youtube'],
-    dimensions: '1080 x 1350', thumbnail: '/nhyqr-hotel-scene.jpg',
-    usedIn: [{ campaign: 'Venue Tour', platform: 'youtube' }],
-  },
-  /* Videos (8) */
-  {
-    id: '13', filename: 'demo-walkthrough.mp4', name: 'App Demo Walkthrough',
-    type: 'video', size: '12.4 MB', sizeMB: 12.4, duration: '0:45',
-    date: 'Jun 14, 2024', dateObj: new Date(2024, 5, 14),
-    tags: ['demo', 'video', 'product'], platforms: ['youtube', 'facebook'],
-    dimensions: '1920 x 1080', thumbnail: '/nhyqr-app-mockup-1.jpg',
-    usedIn: [{ campaign: 'Product Demo', platform: 'youtube' }],
-  },
-  {
-    id: '14', filename: 'qr-menu-demo.mp4', name: 'QR Menu in Action',
-    type: 'video', size: '8.7 MB', sizeMB: 8.7, duration: '0:32',
-    date: 'Jun 13, 2024', dateObj: new Date(2024, 5, 13),
-    tags: ['qr', 'demo', 'video'], platforms: ['instagram', 'youtube'],
-    dimensions: '1080 x 1920', thumbnail: '/nhyqr-qr-placemat.jpg',
-    usedIn: [{ campaign: 'QR Demo Reel', platform: 'instagram' }, { campaign: 'Setup Guide', platform: 'youtube' }],
-  },
-  {
-    id: '15', filename: 'restaurant-owner-review.mp4', name: 'Owner Testimonial',
-    type: 'video', size: '15.2 MB', sizeMB: 15.2, duration: '0:58',
-    date: 'Jun 11, 2024', dateObj: new Date(2024, 5, 11),
-    tags: ['testimonial', 'review'], platforms: ['facebook', 'youtube'],
-    dimensions: '1920 x 1080', thumbnail: '/nhyqr-restaurant-scene.jpg',
-    usedIn: [{ campaign: 'Social Proof', platform: 'facebook' }],
-  },
-  {
-    id: '16', filename: 'setup-tutorial.mp4', name: 'Setup Tutorial',
-    type: 'video', size: '28.4 MB', sizeMB: 28.4, duration: '2:15',
-    date: 'Jun 10, 2024', dateObj: new Date(2024, 5, 10),
-    tags: ['tutorial', 'how-to'], platforms: ['youtube'],
-    dimensions: '1920 x 1080', thumbnail: '/nhyqr-dashboard-preview.jpg',
-    usedIn: [{ campaign: 'Onboarding', platform: 'youtube' }],
-  },
-  {
-    id: '17', filename: 'cafe-promo-reel.mp4', name: 'Cafe Promo Reel',
-    type: 'video', size: '7.1 MB', sizeMB: 7.1, duration: '0:28',
-    date: 'Jun 9, 2024', dateObj: new Date(2024, 5, 9),
-    tags: ['reel', 'cafe', 'promo'], platforms: ['instagram'],
-    dimensions: '1080 x 1920', thumbnail: '/nhyqr-cafe-scene.jpg',
-    usedIn: [{ campaign: 'Cafe Stories', platform: 'instagram' }],
-  },
-  {
-    id: '18', filename: 'hotel-showcase.mp4', name: 'Hotel Showcase',
-    type: 'video', size: '11.3 MB', sizeMB: 11.3, duration: '0:41',
-    date: 'Jun 8, 2024', dateObj: new Date(2024, 5, 8),
-    tags: ['hotel', 'showcase'], platforms: ['instagram', 'youtube'],
-    dimensions: '1080 x 1920', thumbnail: '/nhyqr-hotel-scene.jpg',
-    usedIn: [{ campaign: 'Luxury Promo', platform: 'youtube' }],
-  },
-  {
-    id: '19', filename: 'features-overview.mp4', name: 'Features Overview',
-    type: 'video', size: '19.8 MB', sizeMB: 19.8, duration: '1:30',
-    date: 'Jun 7, 2024', dateObj: new Date(2024, 5, 7),
-    tags: ['features', 'product'], platforms: ['youtube', 'facebook'],
-    dimensions: '1920 x 1080', thumbnail: '/nhyqr-app-mockup-1.jpg',
-    usedIn: [{ campaign: 'Feature Launch', platform: 'youtube' }],
-  },
-  {
-    id: '20', filename: 'customer-reaction.mp4', name: 'Customer Reactions',
-    type: 'video', size: '5.9 MB', sizeMB: 5.9, duration: '0:22',
-    date: 'Jun 6, 2024', dateObj: new Date(2024, 5, 6),
-    tags: ['customer', 'reaction'], platforms: ['instagram', 'facebook'],
-    dimensions: '1080 x 1920', thumbnail: '/nhyqr-cafe-scene.jpg',
-    usedIn: [{ campaign: 'User Generated', platform: 'instagram' }],
-  },
-  /* Screenshots (4) */
-  {
-    id: '21', filename: 'screenshot-menu-editor.png', name: 'Menu Editor UI',
-    type: 'screenshot', size: '0.4 MB', sizeMB: 0.4,
-    date: 'Jun 14, 2024', dateObj: new Date(2024, 5, 14),
-    tags: ['screenshot', 'ui', 'editor'], platforms: ['facebook'],
-    dimensions: '1440 x 900', thumbnail: '/nhyqr-dashboard-preview.jpg',
-    usedIn: [{ campaign: 'Feature Highlight', platform: 'facebook' }],
-  },
-  {
-    id: '22', filename: 'screenshot-analytics.png', name: 'Analytics Screen',
-    type: 'screenshot', size: '0.3 MB', sizeMB: 0.3,
-    date: 'Jun 13, 2024', dateObj: new Date(2024, 5, 13),
-    tags: ['screenshot', 'analytics'], platforms: ['instagram', 'facebook'],
-    dimensions: '1440 x 900', thumbnail: '/nhyqr-app-mockup-1.jpg',
-    usedIn: [{ campaign: 'Data Story', platform: 'instagram' }],
-  },
-  {
-    id: '23', filename: 'screenshot-qr-generator.png', name: 'QR Generator UI',
-    type: 'screenshot', size: '0.4 MB', sizeMB: 0.4,
-    date: 'Jun 12, 2024', dateObj: new Date(2024, 5, 12),
-    tags: ['screenshot', 'qr', 'ui'], platforms: ['youtube', 'facebook'],
-    dimensions: '1440 x 900', thumbnail: '/nhyqr-qr-placemat.jpg',
-    usedIn: [{ campaign: 'Tool Showcase', platform: 'youtube' }],
-  },
-  {
-    id: '24', filename: 'screenshot-menu-live.png', name: 'Live Menu View',
-    type: 'screenshot', size: '0.3 MB', sizeMB: 0.3,
-    date: 'Jun 11, 2024', dateObj: new Date(2024, 5, 11),
-    tags: ['screenshot', 'menu', 'live'], platforms: ['instagram'],
-    dimensions: '1440 x 900', thumbnail: '/nhyqr-restaurant-scene.jpg',
-    usedIn: [{ campaign: 'Live Demo', platform: 'instagram' }],
-  },
-]
+  let type: AssetType
+  switch (apiAsset.type) {
+    case 'IMAGE': type = 'image'; break
+    case 'VIDEO': type = 'video'; break
+    case 'SCREENSHOT': type = 'screenshot'; break
+    case 'QR_MOCKUP': type = 'qr-mockup'; break
+    case 'AUDIO': type = 'video'; break
+    default: type = 'image'
+  }
 
-const ALL_TAGS = Array.from(new Set(MOCK_ASSETS.flatMap((a) => a.tags)))
+  const size = sizeMB >= 1
+    ? `${sizeMB.toFixed(1)} MB`
+    : `${(apiAsset.size / 1024).toFixed(1)} KB`
+
+  const date = dateObj.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+
+  const platforms: Platform[] = apiAsset.platform
+    ? [apiAsset.platform.toLowerCase() as Platform]
+    : []
+
+  return {
+    id: apiAsset.id,
+    name: apiAsset.name,
+    filename,
+    type,
+    size,
+    sizeMB,
+    date,
+    dateObj,
+    tags: apiAsset.tags,
+    platforms,
+    dimensions: apiAsset.dimensions || '',
+    thumbnail: apiAsset.url,
+    usedIn: [],
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Sub-components                                                     */
@@ -460,7 +303,41 @@ function TagPill({ tag, onRemove, removable }: { tag: string; onRemove?: () => v
 /*  Upload Dialog                                                      */
 /* ------------------------------------------------------------------ */
 
-function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function UploadDialog({
+  open,
+  onClose,
+  onUploadComplete,
+}: {
+  open: boolean
+  onClose: () => void
+  onUploadComplete: () => void
+}) {
+  const [isDragging, setIsDragging] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setUploading(true)
+    const total = files.length
+    let completed = 0
+    for (const file of Array.from(files)) {
+      try {
+        await uploadAsset(file)
+        completed++
+        toast.success(`Uploaded ${file.name}`)
+      } catch {
+        toast.error(`Failed to upload ${file.name}`)
+      }
+    }
+    setUploading(false)
+    if (completed > 0) {
+      toast.success(`${completed} of ${total} files uploaded`)
+      onUploadComplete()
+    }
+    onClose()
+  }
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-md bg-white border border-linen">
@@ -468,13 +345,39 @@ function UploadDialog({ open, onClose }: { open: boolean; onClose: () => void })
           <DialogTitle className="text-h3 text-warm-black">Upload Assets</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
-          <div className="border-2 border-dashed border-sand rounded-card p-8 text-center hover:border-caramel hover:bg-cream/50 transition-colors cursor-pointer">
-            <div className="w-12 h-12 rounded-full bg-caramel/15 flex items-center justify-center mx-auto mb-3">
-              <Upload size={20} className="text-caramel" />
-            </div>
-            <p className="text-h4 text-warm-black mb-1">Drop files here</p>
-            <p className="text-body-sm text-stone">or click to browse from your computer</p>
-            <p className="text-caption text-stone mt-2">Supports JPG, PNG, MP4, MOV up to 100MB</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*,audio/*"
+            multiple
+            className="hidden"
+            onChange={(e) => handleFiles(e.target.files)}
+          />
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFiles(e.dataTransfer.files) }}
+            className={cn(
+              'border-2 border-dashed rounded-card p-8 text-center transition-colors cursor-pointer',
+              isDragging ? 'border-caramel bg-cream/50' : 'border-sand hover:border-caramel hover:bg-cream/50'
+            )}
+          >
+            {uploading ? (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 size={24} className="text-caramel animate-spin" />
+                <p className="text-body-sm text-stone">Uploading...</p>
+              </div>
+            ) : (
+              <>
+                <div className="w-12 h-12 rounded-full bg-caramel/15 flex items-center justify-center mx-auto mb-3">
+                  <Upload size={20} className="text-caramel" />
+                </div>
+                <p className="text-h4 text-warm-black mb-1">Drop files here</p>
+                <p className="text-body-sm text-stone">or click to browse from your computer</p>
+                <p className="text-caption text-stone mt-2">Supports JPG, PNG, MP4, MOV up to 100MB</p>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -520,9 +423,15 @@ function SparklesIcon({ size, className }: { size?: number; className?: string }
 function AssetDetailDrawer({
   asset,
   onClose,
+  onDelete,
+  onDownload,
+  allTags,
 }: {
   asset: Asset | null
   onClose: () => void
+  onDelete: (asset: Asset) => void
+  onDownload: (asset: Asset) => void
+  allTags: string[]
 }) {
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
@@ -532,7 +441,6 @@ function AssetDetailDrawer({
   }, [asset])
 
   if (!asset) return null
-
 
   return (
     <AnimatePresence>
@@ -673,7 +581,7 @@ function AssetDetailDrawer({
                     />
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-2">
-                    {ALL_TAGS.filter((t) => !tags.includes(t)).slice(0, 6).map((tag) => (
+                    {allTags.filter((t) => !tags.includes(t)).slice(0, 6).map((tag) => (
                       <button
                         key={tag}
                         onClick={() => {
@@ -715,7 +623,7 @@ function AssetDetailDrawer({
             {/* Actions Footer */}
             <div className="border-t border-linen p-4 space-y-2 shrink-0 bg-white">
               <button
-                onClick={() => toast.success(`Downloading ${asset.filename}...`)}
+                onClick={() => onDownload(asset)}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-button border border-linen text-sm font-medium text-warm-black hover:bg-cream transition-colors"
               >
                 <Download size={14} />
@@ -731,6 +639,7 @@ function AssetDetailDrawer({
                 </button>
                 <button
                   onClick={() => {
+                    navigator.clipboard.writeText(asset.thumbnail)
                     toast.success('URL copied to clipboard')
                   }}
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-button text-sm font-medium text-stone hover:bg-cream transition-colors"
@@ -739,10 +648,7 @@ function AssetDetailDrawer({
                   Copy URL
                 </button>
                 <button
-                  onClick={() => {
-                    toast.error(`${asset.name} deleted`)
-                    onClose()
-                  }}
+                  onClick={() => onDelete(asset)}
                   className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-button text-sm font-medium text-danger hover:bg-danger-light transition-colors"
                 >
                   <Trash2 size={14} />
@@ -846,7 +752,7 @@ function AssetGridCard({
                 }, {
                   icon: Download,
                   label: 'Download',
-                  action: () => toast.success(`Downloading ${asset.filename}`),
+                  action: () => window.open(asset.thumbnail, '_blank'),
                 }].map((btn, i) => (
                   <motion.button
                     key={btn.label}
@@ -998,7 +904,7 @@ function AssetListRow({
             <Pencil size={14} />
           </button>
           <button
-            onClick={() => toast.success(`Downloading ${asset.filename}`)}
+            onClick={() => window.open(asset.thumbnail, '_blank')}
             className="p-1.5 rounded-md text-stone hover:text-warm-black hover:bg-cream transition-colors"
             title="Download"
           >
@@ -1024,65 +930,59 @@ export default function AssetHub() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [detailAsset, setDetailAsset] = useState<Asset | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [loading, setLoading] = useState(false)
+  const [allTags, setAllTags] = useState<string[]>([])
+
+  /* --- Data fetching --- */
+  const loadAssets = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params: Record<string, string | number> = { limit: 1000 }
+      if (typeFilter !== 'all') params.type = typeFilter.toUpperCase()
+      if (platformFilter !== 'all') params.platform = platformFilter.toUpperCase()
+      if (search.trim()) params.search = search.trim()
+
+      let apiSort = sort
+      if (sort === 'name-asc') apiSort = 'name_asc' as SortOption
+      else if (sort === 'name-desc') apiSort = 'name_desc' as SortOption
+      else if (sort === 'size') apiSort = 'size_desc' as SortOption
+      else if (sort === 'most-used') apiSort = 'newest'
+      params.sort = apiSort
+
+      const res = await fetchAssets(params)
+      let mapped = res.data.map(mapApiAssetToUiAsset)
+
+      if (sort === 'most-used') {
+        mapped.sort((a, b) => b.usedIn.length - a.usedIn.length)
+      }
+
+      setAssets(mapped)
+      setAllTags(Array.from(new Set(mapped.flatMap((a) => a.tags))))
+    } catch {
+      toast.error('Failed to load assets')
+    } finally {
+      setLoading(false)
+    }
+  }, [search, typeFilter, platformFilter, sort])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadAssets()
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [loadAssets])
 
   /* --- Derived data --- */
+  const filteredAssets = assets
+
   const stats = useMemo(() => {
-    const images = MOCK_ASSETS.filter((a) => a.type === 'image').length
-    const videos = MOCK_ASSETS.filter((a) => a.type === 'video').length
-    const screenshots = MOCK_ASSETS.filter((a) => a.type === 'screenshot').length
-    const qrMockups = MOCK_ASSETS.filter((a) => a.type === 'qr-mockup').length
-    return { images, videos, screenshots, qrMockups, total: MOCK_ASSETS.length }
-  }, [])
-
-  const filteredAssets = useMemo(() => {
-    let result = [...MOCK_ASSETS]
-
-    // Search
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      result = result.filter(
-        (a) =>
-          a.name.toLowerCase().includes(q) ||
-          a.filename.toLowerCase().includes(q) ||
-          a.tags.some((t) => t.toLowerCase().includes(q)) ||
-          typeLabel(a.type).toLowerCase().includes(q)
-      )
-    }
-
-    // Type filter
-    if (typeFilter !== 'all') {
-      result = result.filter((a) => a.type === typeFilter)
-    }
-
-    // Platform filter
-    if (platformFilter !== 'all') {
-      result = result.filter((a) => a.platforms.includes(platformFilter as Platform))
-    }
-
-    // Sort
-    switch (sort) {
-      case 'newest':
-        result.sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime())
-        break
-      case 'oldest':
-        result.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
-        break
-      case 'name-asc':
-        result.sort((a, b) => a.name.localeCompare(b.name))
-        break
-      case 'name-desc':
-        result.sort((a, b) => b.name.localeCompare(a.name))
-        break
-      case 'size':
-        result.sort((a, b) => b.sizeMB - a.sizeMB)
-        break
-      case 'most-used':
-        result.sort((a, b) => b.usedIn.length - a.usedIn.length)
-        break
-    }
-
-    return result
-  }, [search, typeFilter, platformFilter, sort])
+    const images = assets.filter((a) => a.type === 'image').length
+    const videos = assets.filter((a) => a.type === 'video').length
+    const screenshots = assets.filter((a) => a.type === 'screenshot').length
+    const qrMockups = assets.filter((a) => a.type === 'qr-mockup').length
+    return { images, videos, screenshots, qrMockups, total: assets.length }
+  }, [assets])
 
   const selectAll = useCallback(() => {
     if (selectedIds.size === filteredAssets.length) {
@@ -1102,6 +1002,44 @@ export default function AssetHub() {
   }, [])
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
+
+  const handleDownloadAsset = useCallback((asset: Asset) => {
+    window.open(asset.thumbnail, '_blank')
+  }, [])
+
+  const handleDeleteAsset = useCallback(async (asset: Asset) => {
+    try {
+      await deleteAsset(asset.id)
+      toast.success(`${asset.name} deleted`)
+      setDetailAsset(null)
+      loadAssets()
+    } catch {
+      toast.error(`Failed to delete ${asset.name}`)
+    }
+  }, [loadAssets])
+
+  const handleBulkDelete = useCallback(async () => {
+    let deleted = 0
+    for (const id of selectedIds) {
+      try {
+        await deleteAsset(id)
+        deleted++
+      } catch {
+        // ignore individual errors
+      }
+    }
+    toast.success(`Deleted ${deleted} assets`)
+    clearSelection()
+    loadAssets()
+  }, [selectedIds, clearSelection, loadAssets])
+
+  const handleBulkDownload = useCallback(() => {
+    selectedIds.forEach((id) => {
+      const asset = assets.find((a) => a.id === id)
+      if (asset) window.open(asset.thumbnail, '_blank')
+    })
+    clearSelection()
+  }, [selectedIds, assets, clearSelection])
 
   /* --- Render --- */
   return (
@@ -1228,20 +1166,14 @@ export default function AssetHub() {
                   <span className="font-medium">{selectedIds.size} selected</span>
                 </label>
                 <button
-                  onClick={() => {
-                    toast.success(`Downloading ${selectedIds.size} assets...`)
-                    clearSelection()
-                  }}
+                  onClick={handleBulkDownload}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-button border border-linen text-sm font-medium text-warm-black hover:bg-cream transition-colors"
                 >
                   <Download size={14} />
                   Download
                 </button>
                 <button
-                  onClick={() => {
-                    toast.error(`Deleted ${selectedIds.size} assets`)
-                    clearSelection()
-                  }}
+                  onClick={handleBulkDelete}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-button bg-danger text-white text-sm font-medium hover:bg-danger/90 transition-colors"
                 >
                   <Trash2 size={14} />
@@ -1260,60 +1192,24 @@ export default function AssetHub() {
       </motion.div>
 
       {/* ---- Section 3/4: Grid or List View ---- */}
-      <AnimatePresence mode="wait">
-        {viewMode === 'grid' ? (
-          <motion.div
-            key="grid"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-          >
-            {filteredAssets.map((asset, i) => (
-              <AssetGridCard
-                key={asset.id}
-                asset={asset}
-                index={i}
-                selected={selectedIds.has(asset.id)}
-                onSelect={() => toggleSelect(asset.id)}
-                onOpen={() => setDetailAsset(asset)}
-              />
-            ))}
-          </motion.div>
-        ) : (
-          <motion.div
-            key="list"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="bg-white rounded-card border border-linen overflow-hidden"
-          >
-            <table className="w-full">
-              <thead>
-                <tr className="bg-cream border-b border-linen">
-                  <th className="py-3 px-4 w-10">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size === filteredAssets.length && filteredAssets.length > 0}
-                      onChange={selectAll}
-                      className="w-4 h-4 rounded border-sand text-caramel focus:ring-caramel"
-                    />
-                  </th>
-                  <th className="py-3 px-2 text-left text-caption text-stone uppercase tracking-wider font-medium">Preview</th>
-                  <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Name</th>
-                  <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Type</th>
-                  <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Size</th>
-                  <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Platforms</th>
-                  <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Tags</th>
-                  <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Date</th>
-                  <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 size={40} className="text-caramel animate-spin" />
+        </div>
+      ) : (
+        <>
+          <AnimatePresence mode="wait">
+            {viewMode === 'grid' ? (
+              <motion.div
+                key="grid"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+              >
                 {filteredAssets.map((asset, i) => (
-                  <AssetListRow
+                  <AssetGridCard
                     key={asset.id}
                     asset={asset}
                     index={i}
@@ -1322,31 +1218,75 @@ export default function AssetHub() {
                     onOpen={() => setDetailAsset(asset)}
                   />
                 ))}
-              </tbody>
-            </table>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="list"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="bg-white rounded-card border border-linen overflow-hidden"
+              >
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-cream border-b border-linen">
+                      <th className="py-3 px-4 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.size === filteredAssets.length && filteredAssets.length > 0}
+                          onChange={selectAll}
+                          className="w-4 h-4 rounded border-sand text-caramel focus:ring-caramel"
+                        />
+                      </th>
+                      <th className="py-3 px-2 text-left text-caption text-stone uppercase tracking-wider font-medium">Preview</th>
+                      <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Name</th>
+                      <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Type</th>
+                      <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Size</th>
+                      <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Platforms</th>
+                      <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Tags</th>
+                      <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Date</th>
+                      <th className="py-3 px-4 text-left text-caption text-stone uppercase tracking-wider font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAssets.map((asset, i) => (
+                      <AssetListRow
+                        key={asset.id}
+                        asset={asset}
+                        index={i}
+                        selected={selectedIds.has(asset.id)}
+                        onSelect={() => toggleSelect(asset.id)}
+                        onOpen={() => setDetailAsset(asset)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      {/* Empty state */}
-      {filteredAssets.length === 0 && (
-        <div className="text-center py-16">
-          <div className="w-16 h-16 rounded-full bg-cream flex items-center justify-center mx-auto mb-4">
-            <Search size={24} className="text-stone" />
-          </div>
-          <h3 className="text-h3 text-warm-black mb-2">No assets found</h3>
-          <p className="text-body-sm text-stone mb-4">Try adjusting your filters or search terms.</p>
-          <button
-            onClick={() => {
-              setSearch('')
-              setTypeFilter('all')
-              setPlatformFilter('all')
-            }}
-            className="text-caramel text-sm font-medium hover:underline"
-          >
-            Clear all filters
-          </button>
-        </div>
+          {/* Empty state */}
+          {filteredAssets.length === 0 && (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 rounded-full bg-cream flex items-center justify-center mx-auto mb-4">
+                <Search size={24} className="text-stone" />
+              </div>
+              <h3 className="text-h3 text-warm-black mb-2">No assets found</h3>
+              <p className="text-body-sm text-stone mb-4">Try adjusting your filters or search terms.</p>
+              <button
+                onClick={() => {
+                  setSearch('')
+                  setTypeFilter('all')
+                  setPlatformFilter('all')
+                }}
+                className="text-caramel text-sm font-medium hover:underline"
+              >
+                Clear all filters
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* ---- Section 5: Asset Detail Drawer ---- */}
@@ -1355,12 +1295,15 @@ export default function AssetHub() {
           <AssetDetailDrawer
             asset={detailAsset}
             onClose={() => setDetailAsset(null)}
+            onDelete={handleDeleteAsset}
+            onDownload={handleDownloadAsset}
+            allTags={allTags}
           />
         )}
       </AnimatePresence>
 
       {/* Upload Dialog */}
-      <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} />
+      <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} onUploadComplete={loadAssets} />
     </div>
   )
 }

@@ -13,9 +13,9 @@ import {
   Upload,
   Trash2,
   RefreshCw,
-  Instagram,
-  Facebook,
-  Youtube,
+  Camera as Instagram,
+  MessagesSquare as Facebook,
+  PlaySquare as Youtube,
   
   Star,
   AlertCircle,

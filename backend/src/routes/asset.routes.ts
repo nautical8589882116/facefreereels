@@ -1,14 +1,22 @@
 import { Router } from 'express'
+import { randomUUID } from 'crypto'
+import path from 'path'
 import { z } from 'zod'
-import cloudinary from '../config/cloudinary'
+import {
+  uploadBuffer,
+  removeObject,
+  objectPathFromPublicUrl,
+} from '../config/supabase'
 import { upload } from '../middleware/upload'
 import { successResponse, paginatedResponse } from '../utils/response'
 import { AuthRequest } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { ApiError } from '../middleware/errorHandler'
-import * as assetService from '../services/asset.service'
+import * as assetServiceRaw from '../services/asset.service'
+import { instrumentServiceModule } from '../utils/logger'
 
 const router = Router()
+const assetService = instrumentServiceModule('AssetService', assetServiceRaw)
 
 // ─── Validation Schemas ──────────────────────────────────────
 
@@ -19,31 +27,6 @@ const updateTagsSchema = z.object({
 const linkCampaignSchema = z.object({
   campaignId: z.string().min(1, 'Campaign ID is required'),
 })
-
-// ─── Helper: Upload to Cloudinary ────────────────────────────
-
-function uploadToCloudinary(
-  buffer: Buffer,
-  options: Record<string, unknown>
-): Promise<{ secure_url: string; public_id: string; bytes: number }> {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      options,
-      (error, result) => {
-        if (error || !result) {
-          reject(error || new Error('Cloudinary upload failed'))
-        } else {
-          resolve({
-            secure_url: result.secure_url,
-            public_id: result.public_id,
-            bytes: result.bytes,
-          })
-        }
-      }
-    )
-    stream.end(buffer)
-  })
-}
 
 // ─── GET /api/assets ─────────────────────────────────────────
 
@@ -129,31 +112,19 @@ router.post(
 
       const platform = (req.body.platform as string) || null
 
-      // Upload to Cloudinary
-      const cloudinaryType = assetType === 'VIDEO' ? 'video' : 'image'
-      const result = await uploadToCloudinary(file.buffer, {
-        folder: `nhyqr/assets/${userId}`,
-        resource_type: cloudinaryType,
-      })
-
-      // Parse dimensions for images
-      let dimensions: string | null = null
-      if (assetType === 'IMAGE' && result.secure_url) {
-        // Cloudinary includes width/height in result
-        const cldResult = result as unknown as Record<string, unknown>
-        if (cldResult.width && cldResult.height) {
-          dimensions = `${cldResult.width}x${cldResult.height}`
-        }
-      }
+      // Upload to Supabase Storage under a per-user folder
+      const ext = path.extname(file.originalname || '').toLowerCase()
+      const objectPath = `${userId}/${randomUUID()}${ext}`
+      const result = await uploadBuffer(objectPath, file.buffer, mimeType)
 
       // Create database record
       const asset = await assetService.createAsset(userId, {
         name: req.body.name || file.originalname || 'Untitled',
         type: assetType,
-        url: result.secure_url,
+        url: result.publicUrl,
         platform,
-        size: result.bytes,
-        dimensions,
+        size: result.size,
+        dimensions: null,
         mimeType,
         isPublic: req.body.isPublic === 'true',
         tags: req.body.tags
@@ -181,22 +152,15 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
       throw new ApiError(404, 'Asset not found')
     }
 
-    // Delete from Cloudinary
+    // Delete from Supabase Storage
     try {
-      const resourceType = asset.type === 'VIDEO' ? 'video' : 'image'
-      // Extract public_id from Cloudinary URL
-      const urlParts = asset.url.split('/')
-      const uploadIndex = urlParts.indexOf('upload')
-      if (uploadIndex !== -1) {
-        const publicIdWithVersion = urlParts.slice(uploadIndex + 1).join('/')
-        const publicId = publicIdWithVersion.replace(/^v\d+\//, '').split('.')[0]
-        await cloudinary.uploader.destroy(publicId, {
-          resource_type: resourceType,
-        })
+      const objectPath = objectPathFromPublicUrl(asset.url)
+      if (objectPath) {
+        await removeObject(objectPath)
       }
-    } catch (cloudinaryErr) {
-      // Log but don't fail if Cloudinary deletion fails
-      console.error('Failed to delete from Cloudinary:', cloudinaryErr)
+    } catch (storageErr) {
+      // Log but don't fail if storage deletion fails
+      console.error('Failed to delete from Supabase Storage:', storageErr)
     }
 
     successResponse(res, { id: asset.id }, 'Asset deleted successfully')

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
+import { logError, logger } from '../utils/logger'
 
 export class ApiError extends Error {
   constructor(
@@ -18,6 +19,12 @@ export function errorHandler(
   _next: NextFunction
 ) {
   if (err instanceof ApiError) {
+    logger.warn('api.error.handled', {
+      statusCode: err.statusCode,
+      message: err.message,
+      errors: err.errors,
+    })
+
     return res.status(err.statusCode).json({
       success: false,
       message: err.message,
@@ -25,7 +32,7 @@ export function errorHandler(
     })
   }
 
-  console.error('Unhandled error:', err)
+  logError(err)
   return res.status(500).json({
     success: false,
     message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
@@ -33,6 +40,11 @@ export function errorHandler(
 }
 
 export function notFoundHandler(req: Request, res: Response) {
+  logger.warn('api.route.not_found', {
+    method: req.method,
+    path: req.path,
+  })
+
   res.status(404).json({
     success: false,
     message: `Route ${req.method} ${req.path} not found`,

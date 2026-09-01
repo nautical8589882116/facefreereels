@@ -311,7 +311,10 @@ export async function duplicateCampaign(userId: string, campaignId: string) {
           body: adCopy.body,
           cta: adCopy.cta,
           hashtags: adCopy.hashtags,
-          variations: adCopy.variations ?? Prisma.JsonNull,
+          variations:
+            adCopy.variations === null
+              ? Prisma.JsonNull
+              : (adCopy.variations as Prisma.InputJsonValue),
           isPrimary: adCopy.isPrimary,
         })),
       })

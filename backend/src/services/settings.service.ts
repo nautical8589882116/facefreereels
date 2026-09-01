@@ -1,6 +1,6 @@
 import { prisma } from '../config/database';
-import { Prisma } from '@prisma/client';
 import { ApiError } from '../middleware/errorHandler';
+import { Prisma } from '@prisma/client';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -83,6 +83,10 @@ function buildUpdateData<T extends object>(
   return data;
 }
 
+function toSettingsUpdateInput<T extends object>(data: Partial<T>): Prisma.UserSettingsUpdateInput {
+  return data as unknown as Prisma.UserSettingsUpdateInput;
+}
+
 // ── Service Methods ───────────────────────────────────────────────────
 
 /**
@@ -159,7 +163,7 @@ export async function updateAllSettings(userId: string, input: FullSettingsInput
 
   const settings = await prisma.userSettings.update({
     where: { userId },
-    data: data as Prisma.UserSettingsUpdateInput,
+    data: toSettingsUpdateInput(data),
   });
 
   return settings;
@@ -178,7 +182,7 @@ export async function updateProductSettings(userId: string, input: ProductSettin
 
   const settings = await prisma.userSettings.update({
     where: { userId },
-    data: data as Prisma.UserSettingsUpdateInput,
+    data: toSettingsUpdateInput(data),
   });
 
   return settings;
@@ -197,7 +201,7 @@ export async function updateBrandSettings(userId: string, input: BrandSettingsIn
 
   const settings = await prisma.userSettings.update({
     where: { userId },
-    data: data as Prisma.UserSettingsUpdateInput,
+    data: toSettingsUpdateInput(data),
   });
 
   return settings;
@@ -216,7 +220,7 @@ export async function updateAISettings(userId: string, input: AISettingsInput) {
 
   const settings = await prisma.userSettings.update({
     where: { userId },
-    data: data as Prisma.UserSettingsUpdateInput,
+    data: toSettingsUpdateInput(data),
   });
 
   return settings;

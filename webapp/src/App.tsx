@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import AdGenerator from './pages/AdGenerator'
@@ -41,16 +42,17 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public routes */}
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
 
       {/* Protected routes with Layout */}
       <Route
-        path="/*"
+        path="/app/*"
         element={
           <ProtectedRoute>
             <Layout>
               <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/ads/generate" element={<AdGenerator />} />
                 <Route path="/reels/generate" element={<ReelGenerator />} />
@@ -59,12 +61,13 @@ function AppRoutes() {
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/campaigns/:id" element={<CampaignDetail />} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
               </Routes>
             </Layout>
           </ProtectedRoute>
         }
       />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

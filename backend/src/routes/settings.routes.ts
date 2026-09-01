@@ -5,9 +5,11 @@ import { validate } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import { AuthRequest } from '../middleware/auth';
 import { ApiError } from '../middleware/errorHandler';
-import * as SettingsService from '../services/settings.service';
+import * as SettingsServiceRaw from '../services/settings.service';
+import { instrumentServiceModule } from '../utils/logger';
 
 const router = Router();
+const SettingsService = instrumentServiceModule('SettingsService', SettingsServiceRaw);
 
 // ── Validation Schemas ────────────────────────────────────────────────
 

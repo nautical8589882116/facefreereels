@@ -5,9 +5,13 @@ import { validate } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import { AuthRequest } from '../middleware/auth';
 import { ApiError } from '../middleware/errorHandler';
-import * as PlatformService from '../services/platform.service';
+import * as PlatformServiceRaw from '../services/platform.service';
+import type { Platform } from '../services/platform.service';
+import { verifyConnection } from '../services/publisher.service';
+import { instrumentServiceModule } from '../utils/logger';
 
 const router = Router();
+const PlatformService = instrumentServiceModule('PlatformService', PlatformServiceRaw);
 
 // ── Validation Schemas ────────────────────────────────────────────────
 
@@ -29,12 +33,12 @@ const refreshTokenSchema = z.object({
 
 // ── Helper ────────────────────────────────────────────────────────────
 
-function getPlatformParam(platform: string): PlatformService.Platform {
+function getPlatformParam(platform: string): Platform {
   const upper = platform.toUpperCase();
   if (!PlatformService.isValidPlatform(upper)) {
     throw new ApiError(400, `Invalid platform. Must be one of: instagram, facebook, youtube`);
   }
-  return upper as PlatformService.Platform;
+  return upper as Platform;
 }
 
 // ── Routes ────────────────────────────────────────────────────────────
@@ -146,6 +150,28 @@ router.patch(
 
       const account = await PlatformService.setPrimary(userId, req.params.id);
       successResponse(res, account, 'Primary account updated');
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/platforms/:id/verify
+ * Ping the platform with the stored token to confirm the connection works.
+ */
+router.get(
+  '/:id/verify',
+  authenticate,
+  async (req: AuthRequest, res, next) => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw new ApiError(401, 'Authentication required');
+      }
+
+      const result = await verifyConnection(userId, req.params.id);
+      successResponse(res, result);
     } catch (error) {
       next(error);
     }

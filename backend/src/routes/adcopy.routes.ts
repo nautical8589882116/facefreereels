@@ -3,10 +3,12 @@ import { z } from 'zod'
 import { AuthRequest } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { successResponse, paginatedResponse } from '../utils/response'
-import * as adCopyService from '../services/adcopy.service'
+import * as adCopyServiceRaw from '../services/adcopy.service'
+import { instrumentServiceModule } from '../utils/logger'
 import { Platform } from '@prisma/client'
 
 const router = Router()
+const adCopyService = instrumentServiceModule('AdCopyService', adCopyServiceRaw)
 
 // ─── Validation Schemas ───────────────────────────────────────
 const platformSchema = z.nativeEnum(Platform)

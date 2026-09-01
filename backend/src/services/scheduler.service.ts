@@ -1,5 +1,8 @@
 import { prisma } from '../config/database'
 import { Prisma, Platform, PostStatus } from '@prisma/client'
+import { ApiError } from '../middleware/errorHandler'
+import { publishToRealPlatform, extractPlatformError } from './publisher.service'
+import { logger } from '../utils/logger'
 
 export interface ListPostsFilters {
   page?: number
@@ -31,6 +34,32 @@ export interface UpdatePostInput {
 export interface CalendarFilters {
   month: number
   year: number
+}
+
+export interface PublishDuePostsOptions {
+  dryRun?: boolean
+  limit?: number
+  notBefore?: Date
+  now?: Date
+}
+
+export interface PublishDuePostSummary {
+  id: string
+  platform: Platform
+  scheduledAt: string
+  status?: PostStatus
+  error?: string
+  externalId?: string
+  url?: string
+}
+
+export interface PublishDuePostsResult {
+  dryRun: boolean
+  checkedAt: string
+  dueCount: number
+  published: PublishDuePostSummary[]
+  failed: PublishDuePostSummary[]
+  skipped: PublishDuePostSummary[]
 }
 
 function buildWhereClause(userId: string, filters: ListPostsFilters): Prisma.ScheduledPostWhereInput {
@@ -182,30 +211,138 @@ export async function publishPost(userId: string, postId: string) {
   })
   if (!existing) return null
 
-  // Mock publish - in production this would call platform APIs
-  const mockEngagement = {
-    likes: Math.floor(Math.random() * 500),
-    comments: Math.floor(Math.random() * 100),
-    shares: Math.floor(Math.random() * 50),
-    saves: Math.floor(Math.random() * 30),
-    reach: Math.floor(Math.random() * 5000) + 500,
-  }
+  try {
+    // Push to the real platform using the user's connected account token.
+    const result = await publishToRealPlatform(userId, existing.platform, {
+      content: existing.content,
+      mediaUrls: existing.mediaUrls,
+    })
 
-  const post = await prisma.scheduledPost.update({
-    where: { id: postId },
-    data: {
-      status: PostStatus.PUBLISHED,
-      publishedAt: new Date(),
-      engagement: mockEngagement,
-    },
-    include: {
-      campaign: {
-        select: { id: true, name: true },
+    const post = await prisma.scheduledPost.update({
+      where: { id: postId },
+      data: {
+        status: PostStatus.PUBLISHED,
+        publishedAt: new Date(),
+        engagement: { externalId: result.externalId, url: result.url ?? null },
       },
+      include: {
+        campaign: {
+          select: { id: true, name: true },
+        },
+      },
+    })
+
+    return { post, result }
+  } catch (err) {
+    // Record the failure so the post can be retried, then surface the reason.
+    await prisma.scheduledPost.update({
+      where: { id: postId },
+      data: { status: PostStatus.FAILED },
+    })
+    if (err instanceof ApiError) throw err
+    throw new ApiError(502, `Publish failed: ${extractPlatformError(err)}`)
+  }
+}
+
+export async function publishDueScheduledPosts(
+  options: PublishDuePostsOptions = {}
+): Promise<PublishDuePostsResult> {
+  const now = options.now ?? new Date()
+  const scheduledAtFilter: Prisma.DateTimeFilter = { lte: now }
+  if (options.notBefore) {
+    scheduledAtFilter.gte = options.notBefore
+  }
+  const limit = Math.max(1, Math.min(100, options.limit ?? 10))
+  const dryRun = options.dryRun === true
+
+  const duePosts = await prisma.scheduledPost.findMany({
+    where: {
+      status: PostStatus.SCHEDULED,
+      scheduledAt: scheduledAtFilter,
+    },
+    orderBy: { scheduledAt: 'asc' },
+    take: limit,
+    select: {
+      id: true,
+      userId: true,
+      platform: true,
+      scheduledAt: true,
     },
   })
 
-  return { post, mockEngagement }
+  const result: PublishDuePostsResult = {
+    dryRun,
+    checkedAt: now.toISOString(),
+    dueCount: duePosts.length,
+    published: [],
+    failed: [],
+    skipped: [],
+  }
+
+  if (dryRun) {
+    result.skipped = duePosts.map((post) => ({
+      id: post.id,
+      platform: post.platform,
+      scheduledAt: post.scheduledAt.toISOString(),
+      status: PostStatus.SCHEDULED,
+    }))
+    return result
+  }
+
+  for (const duePost of duePosts) {
+    const summaryBase = {
+      id: duePost.id,
+      platform: duePost.platform,
+      scheduledAt: duePost.scheduledAt.toISOString(),
+    }
+
+    try {
+      // Re-check status immediately before publishing. This avoids publishing
+      // a post that was manually published, deleted, or edited after the scan.
+      const latest = await prisma.scheduledPost.findUnique({
+        where: { id: duePost.id },
+        select: { status: true, scheduledAt: true },
+      })
+
+      if (!latest || latest.status !== PostStatus.SCHEDULED || latest.scheduledAt > now) {
+        result.skipped.push({
+          ...summaryBase,
+          status: latest?.status,
+        })
+        continue
+      }
+
+      const publishResult = await publishPost(duePost.userId, duePost.id)
+      if (!publishResult) {
+        result.failed.push({
+          ...summaryBase,
+          error: 'Scheduled post was not found at publish time.',
+        })
+        continue
+      }
+
+      result.published.push({
+        ...summaryBase,
+        status: publishResult.post.status,
+        externalId: publishResult.result.externalId,
+        url: publishResult.result.url,
+      })
+    } catch (err) {
+      const error = err instanceof ApiError ? err.message : extractPlatformError(err)
+      logger.error('scheduler.publish_due.failed', {
+        postId: duePost.id,
+        platform: duePost.platform,
+        scheduledAt: duePost.scheduledAt,
+        error,
+      })
+      result.failed.push({
+        ...summaryBase,
+        error,
+      })
+    }
+  }
+
+  return result
 }
 
 export async function getCalendarPosts(userId: string, filters: CalendarFilters) {

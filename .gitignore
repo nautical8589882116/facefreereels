@@ -53,3 +53,22 @@ temp/
 # Built SPA copied into the API package at deploy time
 backend/public/
 *.tsbuildinfo
+
+# AI tooling / session state (not part of the application)
+.agents/
+.claude/
+.claude-flow/
+.playwright-mcp/
+.ffr-backup-*/
+
+# Python virtualenv
+.venv/
+
+# Generated/build artifacts
+output/
+src/facefreereels.egg-info/
+src/facefreereels/__pycache__/
+tmp/
+
+# Azure deployment credentials (never commit)
+azure_creds.json

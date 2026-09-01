@@ -1,25 +1,37 @@
-FROM node:20-alpine
+FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install dependencies
-COPY package*.json ./
-RUN npm ci --only=production
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates openssl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy Prisma schema and generate client
 COPY prisma ./prisma/
-RUN npx prisma generate
+COPY package*.json ./
+RUN npm ci
 
-# Copy source
 COPY . .
 RUN npm run build
+RUN npm prune --omit=dev
 
-# Expose port
+FROM node:22-bookworm-slim AS runtime
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_ENV=production
+
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/dist ./dist
+
 EXPOSE 4000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:4000/api/health || exit 1
+  CMD node -e "fetch('http://localhost:4000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# Start
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

@@ -1,13 +1,16 @@
 generator client {
-  provider      = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
   // Azure App Service (Linux) runs a Debian-based Node image. Without the
   // explicit target, the engine built on the CI runner fails to load there.
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["public"]
 }
 
 model User {
@@ -30,6 +33,7 @@ model User {
   settings          UserSettings?
 
   @@map("users")
+  @@schema("public")
 }
 
 model Otp {
@@ -42,6 +46,7 @@ model Otp {
 
   @@index([phone])
   @@map("otps")
+  @@schema("public")
 }
 
 model Campaign {
@@ -68,6 +73,7 @@ model Campaign {
 
   @@index([userId])
   @@map("campaigns")
+  @@schema("public")
 }
 
 model AdCopy {
@@ -87,6 +93,7 @@ model AdCopy {
 
   @@index([campaignId])
   @@map("ad_copies")
+  @@schema("public")
 }
 
 model Reel {
@@ -109,6 +116,7 @@ model Reel {
 
   @@index([userId])
   @@map("reels")
+  @@schema("public")
 }
 
 model Asset {
@@ -131,6 +139,7 @@ model Asset {
 
   @@index([userId])
   @@map("assets")
+  @@schema("public")
 }
 
 model CampaignAsset {
@@ -144,6 +153,7 @@ model CampaignAsset {
 
   @@unique([campaignId, assetId])
   @@map("campaign_assets")
+  @@schema("public")
 }
 
 model ScheduledPost {
@@ -166,6 +176,7 @@ model ScheduledPost {
   @@index([userId])
   @@index([scheduledAt])
   @@map("scheduled_posts")
+  @@schema("public")
 }
 
 model CampaignAnalytics {
@@ -191,6 +202,7 @@ model CampaignAnalytics {
   @@unique([campaignId, platform, date])
   @@index([campaignId])
   @@map("campaign_analytics")
+  @@schema("public")
 }
 
 model PlatformAccount {
@@ -214,6 +226,7 @@ model PlatformAccount {
   @@unique([userId, platform, accountId])
   @@index([userId])
   @@map("platform_accounts")
+  @@schema("public")
 }
 
 model Subscription {
@@ -235,6 +248,7 @@ model Subscription {
 
   @@index([userId])
   @@map("subscriptions")
+  @@schema("public")
 }
 
 model UserSettings {
@@ -270,17 +284,22 @@ model UserSettings {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_settings")
+  @@schema("public")
 }
 
 enum Role {
   USER
   ADMIN
+
+  @@schema("public")
 }
 
 enum CampaignObjective {
   AWARENESS
   ENGAGEMENT
   CONVERSIONS
+
+  @@schema("public")
 }
 
 enum CampaignStatus {
@@ -290,12 +309,16 @@ enum CampaignStatus {
   PAUSED
   COMPLETED
   CANCELLED
+
+  @@schema("public")
 }
 
 enum Platform {
   INSTAGRAM
   FACEBOOK
   YOUTUBE
+
+  @@schema("public")
 }
 
 enum ReelStatus {
@@ -303,6 +326,8 @@ enum ReelStatus {
   PROCESSING
   READY
   FAILED
+
+  @@schema("public")
 }
 
 enum AssetType {
@@ -311,6 +336,8 @@ enum AssetType {
   SCREENSHOT
   QR_MOCKUP
   AUDIO
+
+  @@schema("public")
 }
 
 enum PostStatus {
@@ -318,6 +345,8 @@ enum PostStatus {
   SCHEDULED
   PUBLISHED
   FAILED
+
+  @@schema("public")
 }
 
 enum Plan {
@@ -325,6 +354,8 @@ enum Plan {
   STARTER
   PROFESSIONAL
   ENTERPRISE
+
+  @@schema("public")
 }
 
 enum SubscriptionStatus {
@@ -332,4 +363,6 @@ enum SubscriptionStatus {
   EXPIRED
   CANCELLED
   PENDING
+
+  @@schema("public")
 }

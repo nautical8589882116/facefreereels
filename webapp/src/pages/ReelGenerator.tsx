@@ -31,6 +31,8 @@ import {
   Frame,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+import { fetchReels, createReel, generateReel, getReel, deleteReel, type Reel } from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────
 interface Voice {
@@ -112,27 +114,51 @@ const GRADIENTS: GradientOption[] = [
 ]
 
 const STOCK_VIDEOS = [
-  { id: 'restaurant', name: 'Warm Restaurant', image: '/nhyqr-restaurant-scene.jpg', category: 'Restaurant' },
-  { id: 'cafe', name: 'Hipster Cafe', image: '/nhyqr-cafe-scene.jpg', category: 'Cafe' },
-  { id: 'hotel', name: 'Upscale Hotel', image: '/nhyqr-hotel-scene.jpg', category: 'Hotel' },
-  { id: 'food-prep', name: 'Food Preparation', image: '/nhyqr-restaurant-scene.jpg', category: 'Food' },
-  { id: 'coffee-art', name: 'Coffee Art', image: '/nhyqr-cafe-scene.jpg', category: 'Cafe' },
-  { id: 'dining', name: 'Dining Experience', image: '/nhyqr-hotel-scene.jpg', category: 'Dining' },
-  { id: 'kitchen', name: 'Modern Kitchen', image: '/nhyqr-restaurant-scene.jpg', category: 'Kitchen' },
-  { id: 'patio', name: 'Outdoor Patio', image: '/nhyqr-cafe-scene.jpg', category: 'Outdoor' },
-  { id: 'qr-scan', name: 'QR Code Scan', image: '/nhyqr-hotel-scene.jpg', category: 'Tech' },
+  { id: 'restaurant', name: 'Warm Restaurant', image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='178'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23FF8C42'/%3E%3Cstop offset='100%25' stop-color='%23C0392B'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='178' fill='url(%23g)'/%3E%3C/svg%3E", category: 'Restaurant' },
+  { id: 'cafe', name: 'Hipster Cafe', image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='178'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%238B4513'/%3E%3Cstop offset='100%25' stop-color='%23D2691E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='178' fill='url(%23g)'/%3E%3C/svg%3E", category: 'Cafe' },
+  { id: 'hotel', name: 'Upscale Hotel', image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='178'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%232C3E50'/%3E%3Cstop offset='100%25' stop-color='%23BDC3C7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='178' fill='url(%23g)'/%3E%3C/svg%3E", category: 'Hotel' },
+  { id: 'food-prep', name: 'Food Preparation', image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='178'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23E67E22'/%3E%3Cstop offset='100%25' stop-color='%23F1C40F'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='178' fill='url(%23g)'/%3E%3C/svg%3E", category: 'Food' },
+  { id: 'coffee-art', name: 'Coffee Art', image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='178'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236D4C41'/%3E%3Cstop offset='100%25' stop-color='%23A1887F'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='178' fill='url(%23g)'/%3E%3C/svg%3E", category: 'Cafe' },
+  { id: 'dining', name: 'Dining Experience', image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='178'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%238E44AD'/%3E%3Cstop offset='100%25' stop-color='%23ECF0F1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='178' fill='url(%23g)'/%3E%3C/svg%3E", category: 'Dining' },
+  { id: 'kitchen', name: 'Modern Kitchen', image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='178'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23C0392B'/%3E%3Cstop offset='100%25' stop-color='%232C3E50'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='178' fill='url(%23g)'/%3E%3C/svg%3E", category: 'Kitchen' },
+  { id: 'patio', name: 'Outdoor Patio', image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='178'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2327AE60'/%3E%3Cstop offset='100%25' stop-color='%23F39C12'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='178' fill='url(%23g)'/%3E%3C/svg%3E", category: 'Outdoor' },
+  { id: 'qr-scan', name: 'QR Code Scan', image: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='178'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2334495E'/%3E%3Cstop offset='100%25' stop-color='%235DADE2'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='178' fill='url(%23g)'/%3E%3C/svg%3E", category: 'Tech' },
 ]
 
 const CAPTION_FONTS = ['Inter', 'Montserrat', 'Poppins', 'Roboto', 'Open Sans', 'Bebas Neue', 'Oswald']
 const CAPTION_ANIMATIONS = ['Typewriter', 'Fade In', 'Slide Up', 'Bounce In', 'None']
+const SCRIPT_CHARACTER_LIMIT = 1500
+const SCRIPT_WARNING_THRESHOLD = 1300
+// Must stay <= backend cap (reel.routes duration.max & reel.render Math.min(60,...)).
+const MAX_REEL_DURATION_SECONDS = 60
 
-const RECENT_REELS: RecentReel[] = [
-  { id: '1', title: 'Summer Menu Promo', thumbnail: '/nhyqr-cafe-scene.jpg', duration: '0:32', date: 'Jun 4, 2025' },
-  { id: '2', title: 'QR Menu Tutorial', thumbnail: '/nhyqr-restaurant-scene.jpg', duration: '0:45', date: 'Jun 3, 2025' },
-  { id: '3', title: 'Hotel Dining Ad', thumbnail: '/nhyqr-hotel-scene.jpg', duration: '0:38', date: 'Jun 2, 2025' },
-  { id: '4', title: 'Cafe Morning Special', thumbnail: '/nhyqr-cafe-scene.jpg', duration: '0:28', date: 'Jun 1, 2025' },
-  { id: '5', title: 'Restaurant Week', thumbnail: '/nhyqr-restaurant-scene.jpg', duration: '0:41', date: 'May 30, 2025' },
-]
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function getReelThumbnail(reel: Reel): string {
+  if (reel.thumbnailUrl) return reel.thumbnailUrl
+  const colors = ['#FF8C42', '#8B4513', '#2C3E50', '#E67E22', '#6D4C41', '#8E44AD', '#C0392B', '#27AE60', '#34495E']
+  const c1 = colors[reel.id.charCodeAt(0) % colors.length]
+  const c2 = colors[reel.id.charCodeAt(reel.id.length - 1) % colors.length]
+  return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='213'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='${encodeURIComponent(c1)}'/%3E%3Cstop offset='100%25' stop-color='${encodeURIComponent(c2)}'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='120' height='213' fill='url(%23g)'/%3E%3C/svg%3E`
+}
+
+function mapReelToRecent(reel: Reel): RecentReel {
+  return {
+    id: reel.id,
+    title: reel.title,
+    thumbnail: getReelThumbnail(reel),
+    duration: formatDuration(reel.duration || 30),
+    date: formatDate(reel.createdAt),
+  }
+}
 
 const FONT_MAP: Record<string, string> = {
   'Inter': 'Inter, sans-serif',
@@ -302,6 +328,11 @@ export default function ReelGenerator() {
     color: '#FFFFFF',
   })
 
+  // ── Reels State ──
+  const [recentReels, setRecentReels] = useState<RecentReel[]>([])
+  const [isLoadingReels, setIsLoadingReels] = useState(true)
+  const [createdReel, setCreatedReel] = useState<Reel | null>(null)
+
   // ── Generation State ──
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
@@ -313,9 +344,36 @@ export default function ReelGenerator() {
   // ── Refs ──
   const outputRef = useRef<HTMLDivElement>(null)
 
+  // ── Fetch reels on mount ──
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        setIsLoadingReels(true)
+        const result = await fetchReels({ limit: 20 })
+        if (!cancelled) {
+          setRecentReels(result.data.map(mapReelToRecent))
+        }
+      } catch {
+        if (!cancelled) {
+          toast.error('Failed to load recent reels')
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingReels(false)
+        }
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
   const charCount = script.length
   const wordCount = script.trim() ? script.trim().split(/\s+/).length : 0
-  const estimatedSeconds = Math.ceil(wordCount * 0.35)
+  const rawEstimatedSeconds = Math.ceil(wordCount * 0.35)
+  const estimatedSeconds = wordCount > 0
+    ? Math.min(MAX_REEL_DURATION_SECONDS, Math.max(5, rawEstimatedSeconds))
+    : 0
 
   const filteredVoices = voiceCategory === 'All'
     ? VOICES
@@ -327,16 +385,16 @@ export default function ReelGenerator() {
     switch (selectedBgStyle) {
       case 'stock':
         const sv = STOCK_VIDEOS.find((v) => v.id === selectedStockVideo)
-        return sv?.image || '/nhyqr-restaurant-scene.jpg'
+        return sv?.image || STOCK_VIDEOS[0].image
       case 'gradient':
         const g = GRADIENTS.find((gr) => gr.id === selectedGradient)
         return g?.gradient || GRADIENTS[0].gradient
       case 'solid':
         return solidColor
       case 'slideshow':
-        return '/nhyqr-restaurant-scene.jpg'
+        return STOCK_VIDEOS[0].image
       default:
-        return '/nhyqr-restaurant-scene.jpg'
+        return STOCK_VIDEOS[0].image
     }
   }, [selectedBgStyle, selectedStockVideo, selectedGradient, solidColor])
 
@@ -364,33 +422,104 @@ export default function ReelGenerator() {
     }
   }
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
+    if (!script.trim()) return
+
     setIsGenerating(true)
     setGenerationProgress(0)
     setGenerationStep(0)
     setShowOutput(false)
 
-    const steps = [
-      { delay: 800, step: 1 },
-      { delay: 2500, step: 2 },
-      { delay: 4500, step: 3 },
-      { delay: 6000, step: 4 },
-    ]
+    const title = script.slice(0, 50) + (script.length > 50 ? '...' : '')
+    const voice = selectedVoice || undefined
+    const bgStyle = selectedBgStyle
+    let bgValue: string | null = null
 
-    steps.forEach(({ delay, step }) => {
-      setTimeout(() => {
-        setGenerationStep(step)
-        setGenerationProgress(step * 25)
-        if (step === 4) {
-          setTimeout(() => {
-            setIsGenerating(false)
-            setShowOutput(true)
-            setIsVideoPlaying(true)
-            setTimeout(() => outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
-          }, 600)
+    switch (selectedBgStyle) {
+      case 'stock': {
+        const sv = STOCK_VIDEOS.find((v) => v.id === selectedStockVideo)
+        bgValue = sv?.id || null
+        break
+      }
+      case 'gradient': {
+        const g = GRADIENTS.find((gr) => gr.id === selectedGradient)
+        bgValue = g?.id || null
+        break
+      }
+      case 'solid': {
+        bgValue = solidColor
+        break
+      }
+      case 'slideshow': {
+        bgValue = null
+        break
+      }
+    }
+
+    try {
+      const reel = await createReel({
+        title,
+        script,
+        voice,
+        bgStyle,
+        bgValue,
+        captionStyle: captionSettings as unknown as Record<string, unknown>,
+        duration: estimatedSeconds,
+      })
+
+      setCreatedReel(reel)
+      setRecentReels((prev) => [mapReelToRecent(reel), ...prev])
+
+      await generateReel(reel.id)
+
+      // Poll the backend until ffmpeg render is uploaded to Supabase (READY/FAILED).
+      const startedAt = Date.now()
+      const TIMEOUT_MS = 4 * 60 * 1000
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        await new Promise((r) => setTimeout(r, 2500))
+
+        let latest: Reel | null = null
+        try {
+          latest = await getReel(reel.id)
+        } catch {
+          // transient network error — keep polling
         }
-      }, delay)
-    })
+
+        if (latest?.status === 'READY') {
+          setCreatedReel(latest)
+          setRecentReels((prev) => [mapReelToRecent(latest!), ...prev.filter((r) => r.id !== latest!.id)])
+          setGenerationStep(4)
+          setGenerationProgress(100)
+          setIsGenerating(false)
+          setShowOutput(true)
+          setIsVideoPlaying(true)
+          setTimeout(() => outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+          break
+        }
+
+        if (latest?.status === 'FAILED') {
+          setIsGenerating(false)
+          toast.error('Reel generation failed. Please try again.')
+          break
+        }
+
+        // Still PROCESSING — advance the visual progress from elapsed time.
+        const elapsed = Date.now() - startedAt
+        setGenerationStep(Math.min(3, 1 + Math.floor(elapsed / 7000)))
+        setGenerationProgress(Math.min(90, 15 + (elapsed / TIMEOUT_MS) * 100))
+
+        if (elapsed > TIMEOUT_MS) {
+          setIsGenerating(false)
+          toast.error('Generation timed out. Please try again.')
+          break
+        }
+      }
+    } catch (err) {
+      setIsGenerating(false)
+      const message = err instanceof Error ? err.message : 'Failed to create reel. Please try again.'
+      toast.error(message)
+    }
   }
 
   const handleReset = () => {
@@ -499,8 +628,9 @@ export default function ReelGenerator() {
         <label className="text-h2 text-warm-black block mb-3">Your Script</label>
         <textarea
           value={script}
-          onChange={(e) => { if (!typingEffect) setScript(e.target.value) }}
-          placeholder="Enter your video script here. Keep it under 150 words for a 30-45 second reel..."
+          onChange={(e) => { if (!typingEffect) setScript(e.target.value.slice(0, SCRIPT_CHARACTER_LIMIT)) }}
+          placeholder="Enter your video script here. Keep it under 250 words for up to a 90-second reel..."
+          maxLength={SCRIPT_CHARACTER_LIMIT}
           rows={8}
           className={cn(
             'w-full text-sm text-warm-black placeholder:text-stone/60 border border-sand rounded-lg p-4 resize-none outline-none transition-all duration-200',
@@ -514,9 +644,9 @@ export default function ReelGenerator() {
           </span>
           <span className={cn(
             'text-body-sm font-medium',
-            charCount >= 800 ? 'text-danger' : charCount >= 700 ? 'text-warning' : 'text-stone'
+            charCount >= SCRIPT_CHARACTER_LIMIT ? 'text-danger' : charCount >= SCRIPT_WARNING_THRESHOLD ? 'text-warning' : 'text-stone'
           )}>
-            {charCount}/800 characters
+            {charCount}/{SCRIPT_CHARACTER_LIMIT} characters
           </span>
         </div>
 
@@ -593,7 +723,7 @@ export default function ReelGenerator() {
           <ul className="space-y-3">
             {[
               'Hook in the first 3 seconds',
-              'Keep it under 150 words',
+              'Keep it under 250 words',
               'Use simple, conversational language',
               'Include a clear CTA at the end',
               'Mention your product name 2-3 times',
@@ -1303,6 +1433,21 @@ export default function ReelGenerator() {
                   backgroundPosition: 'center',
                 }}
               >
+                {/* Real rendered video from Supabase (overlays the simulation once READY) */}
+                {createdReel?.videoUrl && (
+                  <video
+                    key={createdReel.videoUrl}
+                    src={createdReel.videoUrl}
+                    poster={createdReel.thumbnailUrl ?? undefined}
+                    controls
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="absolute inset-0 z-30 h-full w-full bg-black object-cover"
+                  />
+                )}
+
                 {/* Play/Pause Overlay */}
                 <AnimatePresence>
                   {!isVideoPlaying && (
@@ -1353,10 +1498,17 @@ export default function ReelGenerator() {
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
-              <button className="flex items-center gap-2 bg-caramel hover:bg-caramel/90 text-white text-sm font-medium px-5 py-2.5 rounded-button transition-all active:scale-[0.98]">
+              <a
+                href={createdReel?.videoUrl ?? undefined}
+                download
+                target="_blank"
+                rel="noreferrer"
+                aria-disabled={!createdReel?.videoUrl}
+                className="flex items-center gap-2 bg-caramel hover:bg-caramel/90 text-white text-sm font-medium px-5 py-2.5 rounded-button transition-all active:scale-[0.98]"
+              >
                 <Download size={16} />
                 Download Video
-              </button>
+              </a>
               <button className="flex items-center gap-2 bg-white border border-linen text-warm-black text-sm font-medium px-5 py-2.5 rounded-button hover:bg-cream transition-colors">
                 <Tag size={16} />
                 Save to Assets
@@ -1418,30 +1570,44 @@ export default function ReelGenerator() {
           {/* Recent Generations */}
           <div className="bg-white rounded-card border border-linen p-6">
             <h3 className="text-h2 text-warm-black mb-4">Recent Generations</h3>
-            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
-              {RECENT_REELS.map((reel, i) => (
-                <motion.button
-                  key={reel.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05, duration: 0.25 }}
-                  className="flex-shrink-0 group text-left"
-                >
-                  <div className="relative w-[120px] h-[213px] rounded-xl overflow-hidden">
-                    <img
-                      src={reel.thumbnail}
-                      alt={reel.title}
-                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                    />
-                    <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
-                      {reel.duration}
-                    </div>
+            {isLoadingReels ? (
+              <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex-shrink-0">
+                    <div className="w-[120px] h-[213px] rounded-xl bg-linen animate-pulse" />
+                    <div className="w-20 h-3 bg-linen animate-pulse mt-1.5 rounded" />
+                    <div className="w-12 h-2 bg-linen animate-pulse mt-1 rounded" />
                   </div>
-                  <p className="text-xs text-warm-black font-medium mt-1.5 truncate w-[120px]">{reel.title}</p>
-                  <p className="text-[10px] text-stone">{reel.date}</p>
-                </motion.button>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : recentReels.length === 0 ? (
+              <p className="text-body-sm text-stone">No reels yet. Create your first one above!</p>
+            ) : (
+              <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
+                {recentReels.map((reel, i) => (
+                  <motion.button
+                    key={reel.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05, duration: 0.25 }}
+                    className="flex-shrink-0 group text-left"
+                  >
+                    <div className="relative w-[120px] h-[213px] rounded-xl overflow-hidden">
+                      <img
+                        src={reel.thumbnail}
+                        alt={reel.title}
+                        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      />
+                      <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
+                        {reel.duration}
+                      </div>
+                    </div>
+                    <p className="text-xs text-warm-black font-medium mt-1.5 truncate w-[120px]">{reel.title}</p>
+                    <p className="text-[10px] text-stone">{reel.date}</p>
+                  </motion.button>
+                ))}
+              </div>
+            )}
           </div>
         </motion.div>
       )}

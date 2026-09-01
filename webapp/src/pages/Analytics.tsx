@@ -8,7 +8,7 @@ import {
 import {
   Eye, MousePointerClick, Percent, Users, DollarSign, CreditCard,
   Download, Search, ChevronDown, ChevronUp, TrendingUp, TrendingDown,
-  Instagram, Facebook, Youtube, Clock, CheckCircle, PauseCircle, 
+  Camera as Instagram, MessagesSquare as Facebook, PlaySquare as Youtube, Clock, CheckCircle, PauseCircle,
   
 } from 'lucide-react'
 
@@ -680,7 +680,7 @@ function EngagementBreakdown() {
               <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#8C8178' }} axisLine={false} tickLine={false} />
               <YAxis domain={[0, 12]} tick={{ fontSize: 11, fill: '#8C8178' }} axisLine={false} tickLine={false} tickFormatter={(v) => v + '%'} />
               <Tooltip
-                formatter={(value: number) => [`${value}%`, 'Engagement Rate']}
+                formatter={(value) => [`${Number(value)}%`, 'Engagement Rate']}
                 contentStyle={{ backgroundColor: '#3D3832', border: 'none', borderRadius: '12px', color: '#fff' }}
                 labelStyle={{ color: '#8C8178', fontSize: 12 }}
               />
@@ -863,7 +863,7 @@ function AudienceInsights() {
                   <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#8C8178' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 10, fill: '#8C8178' }} axisLine={false} tickLine={false} tickFormatter={(v) => v + '%'} />
                   <Tooltip
-                    formatter={(value: number) => [`${value}%`, 'Activity']}
+                    formatter={(value) => [`${Number(value)}%`, 'Activity']}
                     contentStyle={{ backgroundColor: '#3D3832', border: 'none', borderRadius: '12px', color: '#fff' }}
                     labelStyle={{ color: '#8C8178', fontSize: 12 }}
                   />

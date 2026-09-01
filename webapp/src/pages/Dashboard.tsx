@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar,
@@ -7,9 +8,27 @@ import {
 import {
   TrendingUp, TrendingDown, Sparkles, Video, ImagePlus,
   CalendarDays, ArrowRight, Rocket, Upload, Calendar, Trash2,
-  Pencil, Copy, Instagram, Facebook, Youtube,
+  Pencil, Copy, Camera as Instagram, MessagesSquare as Facebook, PlaySquare as Youtube,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Stage, TiltCard, Reveal, Stagger } from '@/components/motion'
+import { scaleItem, riseItem, slideRightItem } from '@/lib/motion'
+
+/* ─────────────────────────── design constants ──────────────────────────── */
+
+const ACCENT = { violet: '#7C3AED', blue: '#2563EB', emerald: '#059669', amber: '#F59E0B' }
+const GRID_STROKE = '#ECEEF2'
+const AXIS_FILL = '#5B6472'
+const surface = 'card-surface'
+const tooltipStyle = {
+  backgroundColor: '#0B0F1A',
+  border: 'none',
+  borderRadius: '12px',
+  color: '#FFFFFF',
+  fontSize: '13px',
+  padding: '10px 14px',
+  boxShadow: '0 24px 60px -24px rgba(0,0,0,0.55)',
+} as const
 
 /* ─────────────────────────── mock data ─────────────────────────── */
 
@@ -36,15 +55,17 @@ const performanceData = [
   { date: 'Jun 8', spend: 280, views: 10200, leads: 20 },
 ]
 
+const PLACEHOLDER_IMG = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect width=%22400%22 height=%22300%22 fill=%22%23F3EEFF%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%2214%22 fill=%22%237C3AED%22%3EPreview%3C/text%3E%3C/svg%3E'
+
 const campaigns = [
-  { id: 1, name: 'Summer Menu Launch — Restaurants', platforms: ['instagram', 'facebook'], objective: 'Conversions', status: 'Published', spend: 892.00, views: 12400, ctr: 3.2, image: '/nhyqr-app-mockup-1.jpg' },
-  { id: 2, name: 'QR Menu Demo Reel', platforms: ['instagram', 'youtube'], objective: 'Awareness', status: 'Published', spend: 1200.00, views: 28100, ctr: 1.8, image: '/nhyqr-qr-placemat.jpg' },
-  { id: 3, name: 'Cafe Owner Testimonial', platforms: ['facebook'], objective: 'Engagement', status: 'Scheduled', spend: 450.00, views: null, ctr: null, image: '/nhyqr-cafe-scene.jpg' },
-  { id: 4, name: 'Hotel Digital Menu Showcase', platforms: ['youtube'], objective: 'Awareness', status: 'Draft', spend: 0.00, views: null, ctr: null, image: '/nhyqr-hotel-scene.jpg' },
-  { id: 5, name: 'Weekend Special Promo', platforms: ['instagram'], objective: 'Conversions', status: 'Published', spend: 680.50, views: 8700, ctr: 4.1, image: '/nhyqr-restaurant-scene.jpg' },
-  { id: 6, name: 'Restaurant Owner Guide', platforms: ['facebook', 'youtube'], objective: 'Engagement', status: 'Published', spend: 525.00, views: 5200, ctr: 2.5, image: '/nhyqr-dashboard-preview.jpg' },
-  { id: 7, name: 'Fast Setup Promise', platforms: ['instagram'], objective: 'Conversions', status: 'Scheduled', spend: 300.00, views: null, ctr: null, image: '/nhyqr-app-mockup-1.jpg' },
-  { id: 8, name: '5-Star Review Feature', platforms: ['instagram', 'facebook'], objective: 'Awareness', status: 'Paused', spend: 200.00, views: 3100, ctr: 1.2, image: '/nhyqr-qr-placemat.jpg' },
+  { id: 1, name: 'Summer Menu Launch — Restaurants', platforms: ['instagram', 'facebook'], objective: 'Conversions', status: 'Published', spend: 892.00, views: 12400, ctr: 3.2, image: PLACEHOLDER_IMG },
+  { id: 2, name: 'QR Menu Demo Reel', platforms: ['instagram', 'youtube'], objective: 'Awareness', status: 'Published', spend: 1200.00, views: 28100, ctr: 1.8, image: PLACEHOLDER_IMG },
+  { id: 3, name: 'Cafe Owner Testimonial', platforms: ['facebook'], objective: 'Engagement', status: 'Scheduled', spend: 450.00, views: null, ctr: null, image: PLACEHOLDER_IMG },
+  { id: 4, name: 'Hotel Digital Menu Showcase', platforms: ['youtube'], objective: 'Awareness', status: 'Draft', spend: 0.00, views: null, ctr: null, image: PLACEHOLDER_IMG },
+  { id: 5, name: 'Weekend Special Promo', platforms: ['instagram'], objective: 'Conversions', status: 'Published', spend: 680.50, views: 8700, ctr: 4.1, image: PLACEHOLDER_IMG },
+  { id: 6, name: 'Restaurant Owner Guide', platforms: ['facebook', 'youtube'], objective: 'Engagement', status: 'Published', spend: 525.00, views: 5200, ctr: 2.5, image: PLACEHOLDER_IMG },
+  { id: 7, name: 'Fast Setup Promise', platforms: ['instagram'], objective: 'Conversions', status: 'Scheduled', spend: 300.00, views: null, ctr: null, image: PLACEHOLDER_IMG },
+  { id: 8, name: '5-Star Review Feature', platforms: ['instagram', 'facebook'], objective: 'Awareness', status: 'Paused', spend: 200.00, views: 3100, ctr: 1.2, image: PLACEHOLDER_IMG },
 ]
 
 const platformDonutData = [
@@ -72,8 +93,6 @@ const activityFeed = [
   { id: 10, type: 'trash', text: "Deleted draft 'Old Menu Design'", detail: 'Campaign removed', time: '3 days ago' },
 ]
 
-/* ──────────────────── mini sparkline data ─────────────────────── */
-
 const sparkData1 = [80, 95, 70, 110, 140, 85, 120]
 const sparkData2 = [2000, 3500, 1800, 4200, 5100, 3200, 4500]
 const sparkData3 = [5, 8, 4, 10, 14, 7, 12]
@@ -98,7 +117,7 @@ function StatusBadge({ status }: { status: string }) {
     Published: { bg: 'bg-success-light', text: 'text-success', dot: 'bg-success' },
     Scheduled: { bg: 'bg-warning-light', text: 'text-warning', dot: 'bg-warning' },
     Draft: { bg: 'bg-info-light', text: 'text-info', dot: 'bg-info' },
-    Paused: { bg: 'bg-sand/50', text: 'text-stone', dot: 'bg-stone' },
+    Paused: { bg: 'bg-sand/40', text: 'text-stone', dot: 'bg-stone' },
     Cancelled: { bg: 'bg-danger-light', text: 'text-danger', dot: 'bg-danger' },
   }
   const c = config[status] || config.Draft
@@ -122,7 +141,7 @@ function MiniSparkline({ data, color, height = 40 }: { data: number[]; color: st
   }).join(' ')
 
   return (
-    <svg viewBox={`0 0 ${w} ${height}`} className="w-full" preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${w} ${height}`} className="block h-full w-full" preserveAspectRatio="none">
       <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       {data.map((v, i) => {
         const x = (i / (data.length - 1)) * w
@@ -137,7 +156,7 @@ function AnimatedCounter({ value, prefix = '', suffix = '', decimals = 0 }: { va
   const [count, setCount] = useState(0)
 
   useEffect(() => {
-    const duration = 800
+    const duration = 900
     const start = performance.now()
     const animate = (now: number) => {
       const elapsed = now - start
@@ -158,14 +177,13 @@ function AnimatedCounter({ value, prefix = '', suffix = '', decimals = 0 }: { va
 
 function TrendBadge({ value, invert = false }: { value: string; invert?: boolean }) {
   const isPositive = value.startsWith('+')
-  const isNegative = value.startsWith('-')
-  const isGood = invert ? isNegative : isPositive
+  const isGood = invert ? !isPositive : isPositive
   const Icon = isGood ? TrendingUp : TrendingDown
 
   return (
     <span className={cn(
       'inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-caption font-medium',
-      isGood ? 'bg-success-light text-success' : 'bg-danger-light text-danger'
+      isGood ? 'bg-success-light text-success' : 'bg-danger-light text-danger',
     )}>
       <Icon size={12} />
       {value}
@@ -184,38 +202,27 @@ interface KPICardProps {
   trend: string
   trendInvert?: boolean
   sparkData: number[]
-  sparkColor: string
-  borderColor: string
-  delay: number
+  accent: string
 }
 
-function KPICard({ label, value, prefix, suffix, decimals, trend, trendInvert, sparkData, sparkColor, borderColor, delay }: KPICardProps) {
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), delay)
-    return () => clearTimeout(t)
-  }, [delay])
-
+function KPICard({ label, value, prefix, suffix, decimals, trend, trendInvert, sparkData, accent }: KPICardProps) {
   return (
-    <div
-      className={cn(
-        'bg-white rounded-card border border-linen p-6 transition-all duration-300 hover:shadow-card-hover hover:-translate-y-0.5',
-        mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
-      )}
-      style={mounted ? {} : {}}
-    >
-      <div className="absolute top-0 left-0 right-0 h-[2px] rounded-t-card" style={{ backgroundColor: borderColor }} />
-      <div className="flex items-start justify-between mb-3">
-        <span className="text-caption text-stone uppercase tracking-wide">{label}</span>
+    <TiltCard variants={scaleItem} intensity={7} className={cn(surface, 'card-surface-hover relative overflow-hidden p-6')}>
+      <span
+        className="absolute inset-x-0 top-0 h-[3px]"
+        style={{ background: `linear-gradient(90deg, ${accent}, ${accent}00)` }}
+      />
+      <div className="mb-3 flex items-start justify-between">
+        <span className="text-caption uppercase tracking-wide text-stone">{label}</span>
         <TrendBadge value={trend} invert={trendInvert} />
       </div>
-      <div className="text-data-lg text-warm-black mb-3">
+      <div className="mb-3 text-data-lg text-warm-black">
         <AnimatedCounter value={value} prefix={prefix} suffix={suffix} decimals={decimals} />
       </div>
-      <div className="h-10">
-        <MiniSparkline data={sparkData} color={sparkColor} />
+      <div className="h-10 overflow-hidden">
+        <MiniSparkline data={sparkData} color={accent} />
       </div>
-    </div>
+    </TiltCard>
   )
 }
 
@@ -235,7 +242,7 @@ export default function Dashboard() {
 
   const activityIcons: Record<string, { icon: React.ElementType; bg: string }> = {
     rocket: { icon: Rocket, bg: 'bg-success-light text-success' },
-    sparkles: { icon: Sparkles, bg: 'bg-caramel/15 text-caramel' },
+    sparkles: { icon: Sparkles, bg: 'bg-peach text-[var(--app-accent)]' },
     upload: { icon: Upload, bg: 'bg-info-light text-info' },
     calendar: { icon: Calendar, bg: 'bg-warning-light text-warning' },
     trash: { icon: Trash2, bg: 'bg-danger-light text-danger' },
@@ -252,33 +259,33 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* ─────────── Section 1: KPI Cards ─────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KPICard label="Total Ad Spend" value={4247.50} prefix="$" decimals={2} trend="+12.5%" sparkData={sparkData1} sparkColor="#C4814B" borderColor="#C4814B" delay={0} />
-        <KPICard label="Total Views" value={48.2} suffix="K" decimals={1} trend="+8.3%" sparkData={sparkData2} sparkColor="#4A7FB5" borderColor="#4A7FB5" delay={50} />
-        <KPICard label="Leads Generated" value={326} trend="+24.1%" sparkData={sparkData3} sparkColor="#2D8F5A" borderColor="#2D8F5A" delay={100} />
-        <KPICard label="Avg. Cost Per Lead" value={13.03} prefix="$" decimals={2} trend="-5.2%" trendInvert sparkData={sparkData4} sparkColor="#D4942A" borderColor="#D4942A" delay={150} />
-      </div>
+      {/* ─────────── Section 1: KPI Cards (isometric stage) ─────────── */}
+      <Stage tilt={2} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KPICard label="Total Ad Spend" value={4247.50} prefix="$" decimals={2} trend="+12.5%" sparkData={sparkData1} accent={ACCENT.violet} />
+        <KPICard label="Total Views" value={48.2} suffix="K" decimals={1} trend="+8.3%" sparkData={sparkData2} accent={ACCENT.blue} />
+        <KPICard label="Leads Generated" value={326} trend="+24.1%" sparkData={sparkData3} accent={ACCENT.emerald} />
+        <KPICard label="Avg. Cost Per Lead" value={13.03} prefix="$" decimals={2} trend="-5.2%" trendInvert sparkData={sparkData4} accent={ACCENT.amber} />
+      </Stage>
 
       {/* ─────────── Section 2: Performance Chart ─────────── */}
-      <div className="bg-white rounded-card border border-linen p-6 animate-fade-in-up">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <Reveal className={cn(surface, 'p-6')}>
+        <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <h2 className="text-h2 text-warm-black">Campaign Performance</h2>
           <div className="flex items-center gap-3">
-            <div className="flex bg-cream rounded-lg p-0.5">
+            <div className="flex rounded-lg bg-cream p-0.5">
               {['7 days', '30 days', 'This Month'].map((range, i) => (
                 <button
                   key={range}
                   className={cn(
-                    'px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150',
-                    i === 1 ? 'bg-caramel text-white' : 'text-stone hover:text-warm-black'
+                    'rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-150 cursor-pointer',
+                    i === 1 ? 'bg-[var(--app-accent)] text-white shadow-xs' : 'text-stone hover:text-warm-black',
                   )}
                 >
                   {range}
                 </button>
               ))}
             </div>
-            <button className="p-2 rounded-lg text-stone hover:text-warm-black hover:bg-cream transition-colors">
+            <button className="cursor-pointer rounded-lg p-2 text-stone transition-colors hover:bg-cream hover:text-warm-black">
               <Upload size={18} />
             </button>
           </div>
@@ -288,75 +295,54 @@ export default function Dashboard() {
           <AreaChart data={performanceData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
             <defs>
               <linearGradient id="gradSpend" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#C4814B" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#C4814B" stopOpacity={0} />
+                <stop offset="5%" stopColor={ACCENT.violet} stopOpacity={0.22} />
+                <stop offset="95%" stopColor={ACCENT.violet} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gradViews" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#4A7FB5" stopOpacity={0.1} />
-                <stop offset="95%" stopColor="#4A7FB5" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="gradLeads" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#2D8F5A" stopOpacity={0.1} />
-                <stop offset="95%" stopColor="#2D8F5A" stopOpacity={0} />
+                <stop offset="5%" stopColor={ACCENT.blue} stopOpacity={0.16} />
+                <stop offset="95%" stopColor={ACCENT.blue} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D8" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 12, fill: '#8C8178' }}
-              tickLine={false}
-              axisLine={false}
-              interval={4}
-            />
-            <YAxis
-              tick={{ fontSize: 12, fill: '#8C8178' }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v) => `$${v}`}
-              width={50}
-            />
+            <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 12, fill: AXIS_FILL }} tickLine={false} axisLine={false} interval={4} />
+            <YAxis tick={{ fontSize: 12, fill: AXIS_FILL }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} width={50} />
             <Tooltip
-              contentStyle={{
-                backgroundColor: '#3D3832',
-                border: 'none',
-                borderRadius: '10px',
-                color: '#FFFFFF',
-                fontSize: '13px',
-                padding: '12px 16px',
-              }}
+              contentStyle={tooltipStyle}
               itemStyle={{ color: '#FFFFFF' }}
-              formatter={(value: number, name: string) => {
-                if (name === 'Views') return [`${(value / 1000).toFixed(1)}K`, name]
-                return [name === 'Ad Spend' ? `$${value}` : value, name]
+              cursor={{ stroke: ACCENT.violet, strokeWidth: 1, strokeDasharray: '4 4' }}
+              formatter={(value, name) => {
+                const numericValue = Number(value)
+                const label = String(name)
+                if (label === 'Views') return [`${(numericValue / 1000).toFixed(1)}K`, label]
+                return [label === 'Ad Spend' ? `$${numericValue}` : numericValue, label]
               }}
-              labelStyle={{ color: '#D4C9BF', marginBottom: '4px' }}
+              labelStyle={{ color: '#C7CBD6', marginBottom: '4px' }}
             />
-            <Area type="monotone" dataKey="spend" name="Ad Spend" stroke="#C4814B" strokeWidth={2} fill="url(#gradSpend)" dot={false} activeDot={{ r: 4, fill: '#C4814B' }} />
-            <Area type="monotone" dataKey="views" name="Views" stroke="#4A7FB5" strokeWidth={2} fill="url(#gradViews)" dot={false} activeDot={{ r: 4, fill: '#4A7FB5' }} />
+            <Area type="monotone" dataKey="spend" name="Ad Spend" stroke={ACCENT.violet} strokeWidth={2.5} fill="url(#gradSpend)" dot={false} activeDot={{ r: 4, fill: ACCENT.violet }} />
+            <Area type="monotone" dataKey="views" name="Views" stroke={ACCENT.blue} strokeWidth={2.5} fill="url(#gradViews)" dot={false} activeDot={{ r: 4, fill: ACCENT.blue }} />
           </AreaChart>
         </ResponsiveContainer>
 
-        {/* Legend */}
-        <div className="flex items-center justify-center gap-6 mt-4 pt-4 border-t border-linen">
+        <div className="mt-4 flex items-center justify-center gap-6 border-t border-linen pt-4">
           {[
-            { label: 'Ad Spend', color: '#C4814B' },
-            { label: 'Views', color: '#4A7FB5' },
+            { label: 'Ad Spend', color: ACCENT.violet },
+            { label: 'Views', color: ACCENT.blue },
           ].map(item => (
             <div key={item.label} className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
               <span className="text-body-sm text-stone">{item.label}</span>
             </div>
           ))}
         </div>
-      </div>
+      </Reveal>
 
       {/* ─────────── Section 3: Recent Campaigns Table ─────────── */}
-      <div className="bg-white rounded-card border border-linen overflow-hidden animate-fade-in-up">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-linen">
+      <Reveal className={cn(surface, 'overflow-hidden')}>
+        <div className="flex items-center justify-between border-b border-linen px-6 py-4">
           <h2 className="text-h2 text-warm-black">Recent Campaigns</h2>
           <button
             onClick={() => navigate('/analytics')}
-            className="text-sm text-caramel hover:underline font-medium"
+            className="cursor-pointer text-sm font-medium text-[var(--app-accent)] hover:underline"
           >
             View All
           </button>
@@ -365,36 +351,26 @@ export default function Dashboard() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-cream">
+              <tr className="bg-cream/70">
                 {['Campaign', 'Platform', 'Objective', 'Status', 'Spend', 'Performance', ''].map((h) => (
-                  <th key={h} className="text-left px-5 py-3 text-caption text-stone uppercase tracking-wider font-semibold whitespace-nowrap">
+                  <th key={h} className="whitespace-nowrap px-5 py-3 text-left text-caption font-semibold uppercase tracking-wider text-stone">
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {campaigns.map((campaign, idx) => (
+              {campaigns.map((campaign) => (
                 <tr
                   key={campaign.id}
-                  className={cn(
-                    'border-b border-linen transition-colors duration-150 group',
-                    'hover:bg-peach/30'
-                  )}
-                  style={{ animationDelay: `${idx * 30}ms` }}
+                  className="group border-b border-linen transition-colors duration-150 hover:bg-peach/40"
                   onMouseEnter={() => setHoveredRow(campaign.id)}
                   onMouseLeave={() => setHoveredRow(null)}
                 >
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={campaign.image}
-                        alt={campaign.name}
-                        className="w-12 h-9 rounded object-cover shrink-0"
-                      />
-                      <div>
-                        <p className="text-sm font-medium text-warm-black truncate max-w-[200px]">{campaign.name}</p>
-                      </div>
+                      <img src={campaign.image} alt={campaign.name} className="h-9 w-12 shrink-0 rounded object-cover ring-1 ring-black/5" />
+                      <p className="max-w-[200px] truncate text-sm font-medium text-warm-black">{campaign.name}</p>
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
@@ -402,11 +378,7 @@ export default function Dashboard() {
                       {campaign.platforms.map((p) => {
                         const PIcon = platformIcons[p]
                         return (
-                          <span
-                            key={p}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-tag text-caption font-medium text-white"
-                            style={{ backgroundColor: platformColors[p] }}
-                          >
+                          <span key={p} className="inline-flex items-center gap-1 rounded-tag px-2 py-0.5 text-caption font-medium text-white" style={{ backgroundColor: platformColors[p] }}>
                             <PIcon size={10} />
                             <span className="capitalize">{p === 'youtube' ? 'YT' : p.slice(0, 2).toUpperCase()}</span>
                           </span>
@@ -415,27 +387,18 @@ export default function Dashboard() {
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className="text-body-sm text-warm-black bg-peach/50 px-2.5 py-1 rounded-tag">
-                      {campaign.objective}
-                    </span>
+                    <span className="rounded-tag bg-peach/60 px-2.5 py-1 text-body-sm text-warm-black">{campaign.objective}</span>
                   </td>
-                  <td className="px-5 py-3.5">
-                    <StatusBadge status={campaign.status} />
-                  </td>
+                  <td className="px-5 py-3.5"><StatusBadge status={campaign.status} /></td>
                   <td className="px-5 py-3.5 text-right">
-                    <span className="text-data-sm font-mono text-warm-black">
-                      ${campaign.spend.toFixed(2)}
-                    </span>
+                    <span className="font-mono text-data-sm text-warm-black">${campaign.spend.toFixed(2)}</span>
                   </td>
                   <td className="px-5 py-3.5">
                     {campaign.views !== null ? (
                       <div className="space-y-1">
                         <span className="text-body-sm text-warm-black">{(campaign.views / 1000).toFixed(1)}K views</span>
-                        <div className="w-full bg-linen rounded-full h-1.5">
-                          <div
-                            className="h-1.5 rounded-full bg-caramel transition-all duration-500"
-                            style={{ width: `${Math.min((campaign.ctr || 0) * 15, 100)}%` }}
-                          />
+                        <div className="h-1.5 w-full rounded-full bg-linen">
+                          <div className="h-1.5 rounded-full bg-[var(--app-accent)] transition-all duration-500" style={{ width: `${Math.min((campaign.ctr || 0) * 15, 100)}%` }} />
                         </div>
                         <span className="text-caption text-stone">{campaign.ctr}% CTR</span>
                       </div>
@@ -444,27 +407,14 @@ export default function Dashboard() {
                     )}
                   </td>
                   <td className="px-5 py-3.5">
-                    <div className={cn(
-                      'flex items-center gap-1 transition-opacity duration-150',
-                      hoveredRow === campaign.id ? 'opacity-100' : 'opacity-0'
-                    )}>
-                      <button
-                        onClick={() => navigate(`/campaigns/${campaign.id}`)}
-                        className="p-1.5 rounded-md text-stone hover:text-caramel hover:bg-caramel/10 transition-colors"
-                        title="Edit"
-                      >
+                    <div className={cn('flex items-center gap-1 transition-opacity duration-150', hoveredRow === campaign.id ? 'opacity-100' : 'opacity-0')}>
+                      <button onClick={() => navigate(`/campaigns/${campaign.id}`)} className="cursor-pointer rounded-md p-1.5 text-stone transition-colors hover:bg-peach hover:text-[var(--app-accent)]" title="Edit">
                         <Pencil size={15} />
                       </button>
-                      <button
-                        className="p-1.5 rounded-md text-stone hover:text-info hover:bg-info/10 transition-colors"
-                        title="Duplicate"
-                      >
+                      <button className="cursor-pointer rounded-md p-1.5 text-stone transition-colors hover:bg-info-light hover:text-info" title="Duplicate">
                         <Copy size={15} />
                       </button>
-                      <button
-                        className="p-1.5 rounded-md text-stone hover:text-danger hover:bg-danger/10 transition-colors"
-                        title="Delete"
-                      >
+                      <button className="cursor-pointer rounded-md p-1.5 text-stone transition-colors hover:bg-danger-light hover:text-danger" title="Delete">
                         <Trash2 size={15} />
                       </button>
                     </div>
@@ -474,121 +424,90 @@ export default function Dashboard() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Reveal>
 
-      {/* ─────────── Section 4: Quick Actions ─────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {quickActions.map((action, idx) => {
+      {/* ─────────── Section 4: Quick Actions (isometric stage) ─────────── */}
+      <Stage tilt={1.5} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {quickActions.map((action) => {
           const Icon = action.icon
           return (
-            <button
+            <TiltCard
               key={action.title}
+              variants={scaleItem}
+              intensity={8}
               onClick={() => navigate(action.path)}
-              className={cn(
-                'bg-white rounded-card border border-linen p-6 text-left transition-all duration-200 group',
-                'hover:-translate-y-1 hover:shadow-card-hover'
-              )}
-              style={{ animationDelay: `${idx * 60}ms` }}
+              className={cn(surface, 'card-surface-hover group/qa cursor-pointer p-6 text-left')}
             >
-              <div className="w-11 h-11 rounded-full bg-caramel/15 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform duration-200">
-                <Icon size={22} className="text-caramel" />
+              <div className="mb-4 flex size-11 items-center justify-center rounded-2xl bg-peach text-[var(--app-accent)] transition-transform duration-200 group-hover/qa:scale-110">
+                <Icon size={22} />
               </div>
-              <h3 className="text-h3 text-warm-black mb-1.5">{action.title}</h3>
-              <p className="text-body-sm text-stone mb-4">{action.description}</p>
-              <span className="inline-flex items-center gap-1 text-sm font-medium text-caramel group-hover:gap-2 transition-all duration-200">
+              <h3 className="mb-1.5 text-h3 text-warm-black">{action.title}</h3>
+              <p className="mb-4 text-body-sm text-stone">{action.description}</p>
+              <span className="inline-flex items-center gap-1 text-sm font-medium text-[var(--app-accent)] transition-all duration-200 group-hover/qa:gap-2">
                 {action.link} <ArrowRight size={14} />
               </span>
-            </button>
+            </TiltCard>
           )
         })}
-      </div>
+      </Stage>
 
       {/* ─────────── Section 5: Platform Breakdown ─────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Donut Chart */}
-        <div className="bg-white rounded-card border border-linen p-6 animate-fade-in-up">
-          <h3 className="text-h2 text-warm-black mb-6">Spend by Platform</h3>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Reveal className={cn(surface, 'p-6')}>
+          <h3 className="mb-6 text-h2 text-warm-black">Spend by Platform</h3>
           <div className="flex flex-col items-center">
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie
-                  data={platformDonutData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={80}
-                  paddingAngle={3}
-                  dataKey="value"
-                  stroke="none"
-                >
+                <Pie data={platformDonutData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
                   {platformDonutData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#3D3832',
-                    border: 'none',
-                    borderRadius: '10px',
-                    color: '#FFFFFF',
-                    fontSize: '13px',
-                  }}
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, 'Spend']}
-                />
+                <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`$${Number(value).toLocaleString()}`, 'Spend']} />
               </PieChart>
             </ResponsiveContainer>
-            <div className="text-center -mt-2 mb-4">
+            <div className="-mt-2 mb-4 text-center">
               <p className="text-data-md text-warm-black">$4,247</p>
               <p className="text-caption text-stone">Total Spend</p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-4">
               {platformDonutData.map((p) => (
                 <div key={p.name} className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color }} />
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: p.color }} />
                   <span className="text-body-sm text-warm-black">{p.name}</span>
                   <span className="text-caption text-stone">${p.value.toLocaleString()}</span>
-                  <span className="text-caption text-stone">
-                    ({((p.value / 4247) * 100).toFixed(0)}%)
-                  </span>
+                  <span className="text-caption text-stone">({((p.value / 4247) * 100).toFixed(0)}%)</span>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        </Reveal>
 
-        {/* Horizontal Bar Chart */}
-        <div className="bg-white rounded-card border border-linen p-6 animate-fade-in-up">
-          <h3 className="text-h2 text-warm-black mb-6">Platform Comparison</h3>
+        <Reveal className={cn(surface, 'p-6')}>
+          <h3 className="mb-6 text-h2 text-warm-black">Platform Comparison</h3>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={platformComparisonData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D8" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 12, fill: '#8C8178' }} tickLine={false} axisLine={false} />
-              <YAxis dataKey="metric" type="category" tick={{ fontSize: 12, fill: '#8C8178' }} tickLine={false} axisLine={false} width={70} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#3D3832',
-                  border: 'none',
-                  borderRadius: '10px',
-                  color: '#FFFFFF',
-                  fontSize: '13px',
-                }}
-              />
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 12, fill: AXIS_FILL }} tickLine={false} axisLine={false} />
+              <YAxis dataKey="metric" type="category" tick={{ fontSize: 12, fill: AXIS_FILL }} tickLine={false} axisLine={false} width={70} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(124,58,237,0.06)' }} />
               <Bar dataKey="instagram" name="Instagram" fill="#E4405F" radius={[0, 4, 4, 0]} barSize={12} />
               <Bar dataKey="facebook" name="Facebook" fill="#1877F2" radius={[0, 4, 4, 0]} barSize={12} />
               <Bar dataKey="youtube" name="YouTube" fill="#FF0000" radius={[0, 4, 4, 0]} barSize={12} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Reveal>
       </div>
 
       {/* ─────────── Section 6: Activity Feed ─────────── */}
-      <div className="bg-white rounded-card border border-linen overflow-hidden animate-fade-in-up">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-linen">
+      <Reveal className={cn(surface, 'overflow-hidden')}>
+        <div className="flex items-center justify-between border-b border-linen px-6 py-4">
           <h2 className="text-h2 text-warm-black">Recent Activity</h2>
           <select
             value={activityFilter}
             onChange={(e) => setActivityFilter(e.target.value)}
-            className="text-sm text-stone bg-cream border border-linen rounded-button px-3 py-1.5 outline-none focus:ring-2 focus:ring-caramel/20"
+            aria-label="Filter activity"
+            className="cursor-pointer rounded-button border border-linen bg-white/70 px-3 py-1.5 text-sm text-stone outline-none focus:ring-accent-soft"
           >
             {['All', 'Campaigns', 'Assets', 'Schedules'].map(opt => (
               <option key={opt} value={opt}>{opt}</option>
@@ -596,28 +515,28 @@ export default function Dashboard() {
           </select>
         </div>
 
-        <div className="max-h-[400px] overflow-y-auto scrollbar-thin divide-y divide-linen">
-          {filteredActivity.map((item, idx) => {
+        <Stagger key={activityFilter} fast className="max-h-[400px] divide-y divide-linen overflow-y-auto scrollbar-thin">
+          {filteredActivity.map((item) => {
             const { icon: AIcon, bg } = activityIcons[item.type]
             return (
-              <div
+              <motion.div
                 key={item.id}
-                className="flex items-start gap-4 px-6 py-4 transition-colors duration-150 hover:bg-cream/50"
-                style={{ animationDelay: `${idx * 40}ms` }}
+                variants={slideRightItem}
+                className="flex items-start gap-4 px-6 py-4 transition-colors duration-150 hover:bg-cream/60"
               >
-                <div className={cn('w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5', bg)}>
+                <div className={cn('mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full', bg)}>
                   <AIcon size={16} />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm text-warm-black">{item.text}</p>
-                  <p className="text-body-sm text-stone mt-0.5">{item.detail}</p>
+                  <p className="mt-0.5 text-body-sm text-stone">{item.detail}</p>
                 </div>
-                <span className="text-caption text-stone shrink-0">{item.time}</span>
-              </div>
+                <span className="shrink-0 text-caption text-stone">{item.time}</span>
+              </motion.div>
             )
           })}
-        </div>
-      </div>
+        </Stagger>
+      </Reveal>
     </div>
   )
 }

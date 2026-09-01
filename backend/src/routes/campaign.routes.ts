@@ -3,10 +3,12 @@ import { z } from 'zod'
 import { AuthRequest } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { successResponse, paginatedResponse } from '../utils/response'
-import * as campaignService from '../services/campaign.service'
+import * as campaignServiceRaw from '../services/campaign.service'
+import { instrumentServiceModule } from '../utils/logger'
 import { CampaignStatus, CampaignObjective } from '@prisma/client'
 
 const router = Router()
+const campaignService = instrumentServiceModule('CampaignService', campaignServiceRaw)
 
 // ─── Validation Schemas ───────────────────────────────────────
 const campaignStatusSchema = z.nativeEnum(CampaignStatus)

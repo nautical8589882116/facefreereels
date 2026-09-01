@@ -1,6 +1,15 @@
 import { prisma } from '../config/database';
 import { ApiError } from '../middleware/errorHandler';
 
+function withCurrentSubscription<T extends { subscriptions?: unknown[] }>(user: T) {
+  const { subscriptions, ...rest } = user;
+  return {
+    ...rest,
+    subscriptions,
+    subscription: subscriptions?.[0] ?? null,
+  };
+}
+
 /**
  * Get user profile by user ID
  */
@@ -8,11 +17,16 @@ export const getProfile = async (userId: string): Promise<any> => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      subscriptions: true,
+      subscriptions: {
+        where: { status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
       _count: {
         select: {
           campaigns: true,
           reels: true,
+          assets: true,
         },
       },
     },
@@ -22,7 +36,7 @@ export const getProfile = async (userId: string): Promise<any> => {
     throw new ApiError(404, 'User not found');
   }
 
-  return user;
+  return withCurrentSubscription(user);
 };
 
 /**
@@ -54,17 +68,22 @@ export const updateProfile = async (
       ...(data.avatar !== undefined && { avatar: data.avatar }),
     },
     include: {
-      subscriptions: true,
+      subscriptions: {
+        where: { status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
       _count: {
         select: {
           campaigns: true,
           reels: true,
+          assets: true,
         },
       },
     },
   });
 
-  return user;
+  return withCurrentSubscription(user);
 };
 
 /**
@@ -78,17 +97,22 @@ export const updateAvatar = async (
     where: { id: userId },
     data: { avatar: fileUrl },
     include: {
-      subscriptions: true,
+      subscriptions: {
+        where: { status: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
       _count: {
         select: {
           campaigns: true,
           reels: true,
+          assets: true,
         },
       },
     },
   });
 
-  return user;
+  return withCurrentSubscription(user);
 };
 
 /**

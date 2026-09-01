@@ -8,9 +8,9 @@ import {
   Pause,
   Play,
   Trash2,
-  Instagram,
-  Facebook,
-  Youtube,
+  Camera as Instagram,
+  MessagesSquare as Facebook,
+  PlaySquare as Youtube,
   Target,
   CalendarDays,
   LayoutTemplate,
@@ -90,12 +90,14 @@ const TIMELINE: TimelineEvent[] = [
   { id: '5', date: 'Jun 13, 2024', time: '11:20 AM', title: 'Campaign created', detail: 'Objective: Conversions | Budget: $1,000 | Duration: 14 days', color: 'bg-stone' },
 ]
 
+const PLACEHOLDER_IMG = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22%3E%3Crect width=%22400%22 height=%22300%22 fill=%22%23f5f0e8%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%2214%22 fill=%22%23999%22%3EPreview%3C/text%3E%3C/svg%3E'
+
 const ASSETS: CampaignAsset[] = [
-  { id: '1', name: 'nhyqr-app-mockup-1.jpg', type: 'image', src: '/nhyqr-app-mockup-1.jpg' },
-  { id: '2', name: 'nhyqr-qr-placemat.jpg', type: 'image', src: '/nhyqr-qr-placemat.jpg' },
-  { id: '3', name: 'menu-items-grid.jpg', type: 'image', src: '/nhyqr-dashboard-preview.jpg' },
-  { id: '4', name: 'happy-customer-scanning.jpg', type: 'image', src: '/nhyqr-cafe-scene.jpg' },
-  { id: '5', name: 'nhyqr-restaurant-scene.jpg', type: 'video', src: '/nhyqr-restaurant-scene.jpg' },
+  { id: '1', name: 'nhyqr-app-mockup-1.jpg', type: 'image', src: PLACEHOLDER_IMG },
+  { id: '2', name: 'nhyqr-qr-placemat.jpg', type: 'image', src: PLACEHOLDER_IMG },
+  { id: '3', name: 'menu-items-grid.jpg', type: 'image', src: PLACEHOLDER_IMG },
+  { id: '4', name: 'happy-customer-scanning.jpg', type: 'image', src: PLACEHOLDER_IMG },
+  { id: '5', name: 'nhyqr-restaurant-scene.jpg', type: 'video', src: PLACEHOLDER_IMG },
 ]
 
 const AD_COPY_DATA: AdCopyVariation[] = [

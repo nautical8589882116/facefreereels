@@ -21,7 +21,6 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
       contents: read
 
     steps:
@@ -80,7 +79,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write
       contents: read
 
     steps:
@@ -90,22 +88,11 @@ jobs:
           name: backend-production
           path: backend
 
-      - name: Sign in to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_F40C66F76BDE44F7B10FC894C2B09FEF }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_905EFC271A6B4DDD8115B0990A8B71D4 }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID_NHYQR }}
-
-      - name: Identify Azure deployment principal
-        shell: bash
-        run: |
-          token="$(az account get-access-token --query accessToken --output tsv)"
-          TOKEN="$token" python -c "import base64,json,os; p=os.environ['TOKEN'].split('.')[1]; p += '=' * (-len(p) % 4); print('Azure principal object id: ' + json.loads(base64.urlsafe_b64decode(p))['oid'])"
       - name: Deploy backend to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_NHYQR }}
           package: backend
 
       - name: Verify backend and demo authentication
@@ -127,7 +114,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write
       contents: read
 
     steps:

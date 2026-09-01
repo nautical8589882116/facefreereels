@@ -100,14 +100,21 @@ jobs:
         run: |
           curl --fail --silent --show-error --retry 12 --retry-delay 10 --retry-all-errors \
             "${API_URL}/api/health" > /dev/null
-          curl --fail --silent --show-error \
-            -H 'Content-Type: application/json' \
-            -d '{"phone":"9876543210"}' \
-            "${API_URL}/api/auth/send-otp" > /dev/null
-          curl --fail --silent --show-error \
-            -H 'Content-Type: application/json' \
-            -d '{"phone":"9876543210","code":"000000","name":"Demo User"}' \
-            "${API_URL}/api/auth/verify-otp" > /dev/null
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error \
+              -H 'Content-Type: application/json' \
+              -d '{"phone":"9876543210"}' \
+              "${API_URL}/api/auth/send-otp" > /dev/null \
+              && curl --fail --silent --show-error \
+                -H 'Content-Type: application/json' \
+                -d '{"phone":"9876543210","code":"000000","name":"Demo User"}' \
+                "${API_URL}/api/auth/verify-otp" > /dev/null; then
+              exit 0
+            fi
+            echo "Authentication is not ready yet (attempt ${attempt}/12)."
+            sleep 10
+          done
+          exit 1
 
   deploy-frontend:
     name: Deploy frontend

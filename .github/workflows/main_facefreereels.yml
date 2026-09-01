@@ -97,6 +97,11 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_905EFC271A6B4DDD8115B0990A8B71D4 }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID_NHYQR }}
 
+      - name: Identify Azure deployment principal
+        shell: bash
+        run: |
+          token="$(az account get-access-token --query accessToken --output tsv)"
+          TOKEN="$token" python -c "import base64,json,os; p=os.environ['TOKEN'].split('.')[1]; p += '=' * (-len(p) % 4); print('Azure principal object id: ' + json.loads(base64.urlsafe_b64decode(p))['oid'])"
       - name: Deploy backend to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
